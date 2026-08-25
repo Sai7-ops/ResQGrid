@@ -5,6 +5,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss()
+    tailwindcss(),
   ],
+  build: {
+    cssMinify: 'esbuild', // Bypasses the LightningCSS inline-SVG quote bug
+  },
 });
