@@ -1,0 +1,1410 @@
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  useNavigate,
+  Navigate,
+  Outlet,
+  NavLink,
+} from "react-router-dom";
+import "./App.css";
+import { useCallback, useEffect, useRef, useState } from "react";
+import axios from "axios";
+import {
+  useMutation,
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+  useQuery,
+} from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { useForm } from "react-hook-form";
+import { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+
+const queryClient = new QueryClient();
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Toaster position="top-right" />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="user/register" element={<UserRegister />} />
+          <Route path="user/login" element={<UserLogin />} />
+          <Route path="agency/register" element={<AgencyRegister />} />
+          <Route path="agency/login" element={<AgencyLogin />} />
+          <Route path="gov/register" element={<GovRegister />} />
+          <Route path="gov/login" element={<GovLogin />} />
+          <Route element={<AgencyRouteProtector />}>
+            <Route path="/agency" element={<AgencyLayout />}>
+              <Route path="home" element={<AgencyHome />} />
+              <Route path="dashboard" element={<AgencyDashboard />} />
+              <Route path="inbox" element={<AgencyInbox />} />
+              <Route path="units" element={<AgencyUnits />} />
+            </Route>
+          </Route>
+        </Routes>
+      </BrowserRouter>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  );
+}
+
+export const Home = () => {
+  return (
+    <div>
+      <h1>Welcome To ResQGrid</h1>
+      <Link to="/user/register">User</Link>
+      <Link to="/agency/register">Agency</Link>
+      <Link to="/gov/register">Government</Link>
+    </div>
+  );
+};
+
+const useAgencyAuth = () => {
+  const {
+    data: agency,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ["agency"],
+    queryFn: apiGetMyAgency,
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
+  return {
+    agency,
+    isPending,
+    isAuthenticated: !isError && Boolean(agency),
+  };
+};
+
+const AgencyRouteProtector = () => {
+  const { isPending, isAuthenticated } = useAgencyAuth();
+  if (isPending) {
+    return <h1>Checking authentication...</h1>;
+  }
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  return <Outlet />;
+};
+
+export const UserRegister = () => {
+  return (
+    <div>
+      <h1>User Registration</h1>
+      <Link to="/user/login">Already registered? then login...</Link>
+    </div>
+  );
+};
+export const UserLogin = () => {
+  return (
+    <div>
+      <h1>User Login</h1>
+    </div>
+  );
+};
+
+const AgencyLayout = () => {
+  return (
+    <>
+      <header>
+        <NavLink to="/agency/home">Home</NavLink>
+        <NavLink to="/agency/dashboard">Dashboard</NavLink>
+        <NavLink to="/agency/inbox">Inbox</NavLink>
+        <NavLink to="/agency/units">Units</NavLink>
+      </header>
+      <main>
+        <Outlet />
+      </main>
+      <footer>footer</footer>
+    </>
+  );
+};
+
+const AgencyDashboard = () => {
+  return <h1>Dashboard</h1>;
+};
+
+const AgencyInbox = () => {
+  return <h1>Inbox</h1>;
+};
+
+const apiGetAgencyUnits = async () => {
+  const response = await axios.get("http://localhost:3000/api/agency/units", {
+    withCredentials: true,
+  });
+  return response.data;
+};
+
+const useGetAgencyUnits = () => {
+  const { data: agencyUnits = [], isPending } = useQuery({
+    queryKey: ["agencyUnits"],
+    queryFn: apiGetAgencyUnits,
+    staleTime: 5 * 60 * 1000,
+  });
+  return { agencyUnits, isPending };
+};
+
+const AgencyUnits = () => {
+  const { agencyUnits, isPending } = useGetAgencyUnits();
+  if (isPending) return <h1>Loading...</h1>;
+  const formatAssetName = (name) => {
+    return name
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+  return (
+    <div>
+      <h1>Units</h1>
+      {agencyUnits.map((unit) => {
+        return (
+          <div>
+            <p>{unit.unit_id}</p>
+            <p>{unit.unit_name}</p>
+            <p>{unit.unit_type}</p>
+
+            <div>
+              {Object.entries(unit.equipped_assets).map(([asset, quantity]) => {
+                return (
+                  <div>
+                    <span>{formatAssetName(asset)}</span>
+                    <span>{quantity}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p>{unit.status}</p>
+            <p>{unit.unit_coverage_radius_km}</p>
+            <p>{unit.unit_email}</p>
+            <p>{unit.unit_contact_no}</p>
+          </div>
+        );
+      })}
+      <AgencyUnitsMap />
+    </div>
+  );
+};
+
+const AgencyUnitsMap = () => {
+  const { agencyUnits, isPending } = useGetAgencyUnits();
+  const { agency, isPending: agencyPending } = useGetMyAgency();
+
+  if (isPending || agencyPending) {
+    return <h1>Loading...</h1>;
+  }
+
+  const [longitude, latitude] = agency.hq_location.coordinates;
+  return (
+    <MapContainer
+      center={[latitude, longitude]}
+      zoom={13}
+      style={{ height: "500px", width: "100%" }}
+    >
+      <TileLayer
+        attribution="&copy; OpenStreetMap contributors"
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      {agencyUnits.map((unit) => {
+        const [longitude, latitude] = unit.location.coordinates;
+        return (
+          <Marker key={unit.unit_id} position={[latitude, longitude]}>
+            <Popup>
+              <strong>{unit.unit_name}</strong>
+              <br />
+              Status: {unit.status}
+            </Popup>
+          </Marker>
+        );
+      })}
+    </MapContainer>
+  );
+};
+
+const useGeolocation = (options = {}) => {
+  const [coordinates, setCoordinates] = useState({
+    latitude: null,
+    longitude: null,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      return setError("Geolocation is not supported by the browser.");
+    }
+    setLoading(true);
+    setError(null);
+
+    const geoOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+      ...options,
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLoading(false);
+      },
+      (err) => {
+        setError(err.message || "Failed to retrieve location");
+        setLoading(false);
+      },
+      geoOptions,
+    );
+  }, [options]);
+
+  return { coordinates, loading, error, fetchLocation };
+};
+
+const apiVerifyAgency = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/verifyAgency",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyAgency = () => {
+  const { mutate: verifyAgency, isPending } = useMutation({
+    mutationFn: apiVerifyAgency,
+  });
+  return { verifyAgency, isPending };
+};
+
+export const AgencyVerification = ({ setStep, setAgency }) => {
+  const { verifyAgency, isPending } = useVerifyAgency();
+  const {
+    register,
+    formState: { errors },
+    handleSubmit,
+    reset,
+  } = useForm();
+
+  const submitHandler = (payload) => {
+    verifyAgency(payload, {
+      onSuccess: (data) => {
+        setStep(2);
+        localStorage.setItem("step", 2);
+        setAgency(data.agency);
+      },
+      onError: (err) => {
+        toast.error(err.response?.data?.message || "Invalid Credentials");
+      },
+      onSettled: () => reset(),
+    });
+  };
+
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Agency Type</span>
+            <select
+              className="select select-primary"
+              disabled={isPending}
+              {...register("category", {
+                required: "This field is required!",
+              })}
+            >
+              <option value="GOVT_UNIT">Government Unit</option>
+              <option value="NGO">Non-Profit Organisation</option>
+              <option value="PVT_CORP">Private Corporation</option>
+              <option value="LOGISTICS">Logistics</option>
+            </select>
+          </label>
+          {errors?.category ? <p>{errors.category.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Agency ID</span>
+            <input
+              type="text"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("agency_id", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.agency_id ? <p>{errors.agency_id.message}</p> : ""}
+        </div>
+        <div>
+          <button disabled={isPending} className="btn btn-primary uppercase">
+            next
+          </button>
+        </div>
+      </form>
+      <Link to="/agency/login">Already registered? then login...</Link>
+    </div>
+  );
+};
+
+export const PersonnelVerification = ({
+  setStep,
+  setOfficialId,
+  setMaskedPhone,
+}) => {
+  const { verifyPersonnel, isPending } = useVerifyAgencyPersonnel();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm();
+
+  const submitHandler = (data) => {
+    verifyPersonnel(data, {
+      onSuccess: (data, variables) => {
+        setStep(3);
+        localStorage.setItem("step", 3);
+        setOfficialId(variables.official_id);
+        setMaskedPhone(data.maskedPhone);
+      },
+      onError: (err) => {
+        toast.error(err.response?.data?.message || "Invalid Credentials");
+      },
+      onSettled: () => reset(),
+    });
+  };
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Official ID</span>
+            <input
+              type="text"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("official_id", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.official_id ? <p>{errors.official_id.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Aadhaar No.</span>
+            <input
+              type="text"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("aadhaar_no", {
+                required: "This field is required!",
+                // maxLength: {
+                //   value: 12,
+                //   message: "Aadhaar number must be exactly 12 digits",
+                // },
+                // minLength: {
+                //   value: 12,
+                //   message: "Aadhaar number must be exactly 12 digits",
+                // },
+              })}
+            />
+          </label>
+          {errors?.aadhaar_no ? <p>{errors.aadhaar_no.message}</p> : ""}
+        </div>
+        <div>
+          <button disabled={isPending} className="btn btn-primary uppercase">
+            {isPending ? "verifying..." : "verify"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export const SMSOtp = ({ setStep, maskedPhone, officialId }) => {
+  const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
+  const inputRefs = useRef([]);
+  const [serverError, setServerError] = useState(null);
+
+  const {
+    handleSubmit,
+    setValue,
+    setError,
+    clearErrors,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      otp: "",
+    },
+  });
+
+  const handleChange = (index, e) => {
+    const val = e.target.value;
+
+    if (val && !/^\d+$/.test(val)) return;
+
+    const newOtp = [...otpValues];
+    newOtp[index] = val ? val.slice(-1) : "";
+    setOtpValues(newOtp);
+
+    const fullOtp = newOtp.join("");
+    setValue("otp", fullOtp);
+
+    if (fullOtp.length === 6) {
+      clearErrors("otp");
+    }
+
+    if (val && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otpValues[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").trim().slice(0, 6);
+
+    if (/^\d+$/.test(pastedData)) {
+      const digits = pastedData.split("");
+      const newOtp = [...otpValues];
+
+      digits.forEach((digit, idx) => {
+        if (idx < 6) newOtp[idx] = digit;
+      });
+
+      setOtpValues(newOtp);
+      setValue("otp", newOtp.join(""));
+      clearErrors("otp");
+
+      const targetIdx = Math.min(digits.length, 5);
+      inputRefs.current[targetIdx]?.focus();
+    }
+  };
+
+  const { verifySmsOtp, isPending } = useVerifySmsOtp();
+
+  const onOtpSubmit = async () => {
+    const fullOtpString = otpValues.join("");
+
+    if (fullOtpString.length !== 6) {
+      setError("otp", {
+        type: "manual",
+        message: "Please enter the full 6-digit code",
+      });
+      return;
+    }
+
+    const payload = { otp: fullOtpString, official_id: officialId };
+
+    verifySmsOtp(payload, {
+      onSuccess: () => {
+        setStep(4);
+        localStorage.setItem("step", 4);
+      },
+      onError: (err) => {
+        setServerError(err.response?.data?.message || "Invalid OTP entered.");
+      },
+      onSettled: () => reset(),
+    });
+  };
+
+  return (
+    <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-200">
+      <div className="card-body">
+        <h2 className="card-title text-xl font-bold justify-center">
+          Verify Authorized Signatory
+        </h2>
+        <p className="text-sm text-base-content/70 text-center">
+          Enter the 6-digit code sent to registered mobile{" "}
+          <span className="font-semibold text-primary">{maskedPhone}</span>
+        </p>
+
+        {serverError && (
+          <div role="alert" className="alert alert-error text-sm py-2 mt-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="stroke-current shrink-0 h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>{serverError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onOtpSubmit)} className="mt-4 space-y-4">
+          <div className="flex justify-center gap-2">
+            {otpValues.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => (inputRefs.current[idx] = el)}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleChange(idx, e)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
+                onPaste={handlePaste}
+                className={`input input-bordered w-12 h-14 text-center text-xl font-bold rounded-lg focus:input-primary ${
+                  errors.otp || serverError ? "input-error" : ""
+                }`}
+                autoFocus={idx === 0}
+              />
+            ))}
+          </div>
+
+          {errors.otp && (
+            <p className="text-error text-xs text-center font-medium">
+              {errors.otp.message}
+            </p>
+          )}
+
+          <div className="card-actions justify-between items-center pt-2">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setStep(2)}
+              disabled={isPending}
+            >
+              ← Back
+            </button>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isPending}
+            >
+              {isPending && (
+                <span className="loading loading-spinner loading-sm"></span>
+              )}
+              {isPending ? "Verifying..." : "Verify OTP"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const EmailVerification = ({ setStep, setEmail }) => {
+  const { verifyEmail, isPending } = useVerifyEmail();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();
+
+  const submitHandler = (data) => {
+    verifyEmail(data, {
+      onSuccess: (data, variables) => {
+        setStep(5);
+        localStorage.setItem("step", 5);
+        setEmail(variables.email);
+      },
+      onError: (err) => {
+        toast.error(err.response?.data?.message || "Invalid Credentials");
+      },
+    });
+  };
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Agency Official Email Id</span>
+            <input
+              type="text"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("email", {
+                required: "This field is required!",
+                pattern: {
+                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message: "Enter a valid email address",
+                },
+              })}
+            />
+          </label>
+          {errors?.email ? <p>{errors.email.message}</p> : ""}
+        </div>
+        <div>
+          <button disabled={isPending} className="uppercase btn btn-primary">
+            verify
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const apiVerifyEmailOtp = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/verifyEmailOtp",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+
+  return response.data;
+};
+
+const useVerifyEmailOtp = () => {
+  const { mutate: verifyEmailOtp, isPending } = useMutation({
+    mutationFn: apiVerifyEmailOtp,
+  });
+  return { verifyEmailOtp, isPending };
+};
+
+export const EmailOtp = ({ setStep, email }) => {
+  const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
+  const inputRefs = useRef([]);
+
+  const {
+    verifyEmailOtp,
+    isPending,
+    error: mutationError,
+  } = useVerifyEmailOtp();
+
+  const {
+    handleSubmit,
+    setValue,
+    setError,
+    clearErrors,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      otp: "",
+    },
+  });
+
+  const handleChange = (index, e) => {
+    const val = e.target.value;
+    if (val && !/^\d+$/.test(val)) return;
+
+    const newOtp = [...otpValues];
+    newOtp[index] = val ? val.slice(-1) : "";
+    setOtpValues(newOtp);
+
+    const fullOtp = newOtp.join("");
+    setValue("otp", fullOtp);
+
+    if (fullOtp.length === 6) {
+      clearErrors("otp");
+    }
+
+    if (val && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otpValues[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").trim().slice(0, 6);
+
+    if (/^\d+$/.test(pastedData)) {
+      const digits = pastedData.split("");
+      const newOtp = [...otpValues];
+
+      digits.forEach((digit, idx) => {
+        if (idx < 6) newOtp[idx] = digit;
+      });
+
+      setOtpValues(newOtp);
+      setValue("otp", newOtp.join(""));
+      clearErrors("otp");
+
+      const targetIdx = Math.min(digits.length, 5);
+      inputRefs.current[targetIdx]?.focus();
+    }
+  };
+
+  const onSubmit = () => {
+    const fullOtp = otpValues.join("");
+
+    if (fullOtp.length !== 6) {
+      setError("otp", {
+        type: "manual",
+        message: "Please enter the complete 6-digit verification code.",
+      });
+      return;
+    }
+
+    verifyEmailOtp(
+      {
+        email,
+        otp: fullOtp,
+      },
+      {
+        onSuccess: () => {
+          setStep(6);
+          localStorage.setItem("step", 6);
+        },
+        onSettled: () => reset(),
+      },
+    );
+  };
+
+  const serverErrorMessage =
+    mutationError?.response?.data?.message || mutationError?.message;
+
+  return (
+    <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-200 mx-auto">
+      <div className="card-body">
+        <h2 className="card-title text-xl font-bold justify-center">
+          Verify Official Email
+        </h2>
+        <p className="text-sm text-base-content/70 text-center">
+          Enter the 6-digit verification code sent to{" "}
+          <span className="font-semibold text-primary">{email}</span>
+        </p>
+
+        {serverErrorMessage && (
+          <div role="alert" className="alert alert-error text-sm py-2 mt-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="stroke-current shrink-0 h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>{serverErrorMessage}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-5">
+          <div className="flex justify-center gap-2">
+            {otpValues.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => (inputRefs.current[idx] = el)}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleChange(idx, e)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
+                onPaste={handlePaste}
+                disabled={isPending}
+                className={`input input-bordered w-12 h-14 text-center text-xl font-bold rounded-lg focus:input-primary ${
+                  errors.otp || serverErrorMessage ? "input-error" : ""
+                }`}
+                autoFocus={idx === 0}
+              />
+            ))}
+          </div>
+
+          {errors.otp && (
+            <p className="text-error text-xs text-center font-medium">
+              {errors.otp.message}
+            </p>
+          )}
+
+          <div className="card-actions justify-between items-center pt-2">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setStep((prev) => prev - 1)}
+              disabled={isPending}
+            >
+              ← Back
+            </button>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isPending}
+            >
+              {isPending && (
+                <span className="loading loading-spinner loading-sm"></span>
+              )}
+              {isPending ? "Verifying..." : "Verify Code"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const apiRegisterAgency = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/register",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useRegisterAgency = () => {
+  const queryClient = useQueryClient();
+  const { mutate: registerAgency, isPending } = useMutation({
+    mutationFn: apiRegisterAgency,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["agency"], data.agency);
+    },
+  });
+  return { registerAgency, isPending };
+};
+
+export const AgencyRegistration = ({ agency, setStep }) => {
+  const { coordinates, loading, error, fetchLocation } = useGeolocation();
+  const navigate = useNavigate();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    getValues,
+    setValue,
+    reset,
+  } = useForm();
+  const { registerAgency, isPending } = useRegisterAgency();
+  console.log(agency);
+  const submitHandler = (data) => {
+    const payload = {
+      agency_id: agency.agency_id,
+      agency_name: agency.legal_name,
+      category: agency.category,
+      authorized_state: agency.authorized_state,
+      official_email: agency.official_agency_email,
+      hotline_no: data.hotline_no,
+      password: data.password,
+      hq_location_address: data.hq_location_address,
+      coverage_radius_km: data.coverage_radius_km,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      primary_capabilities_tags: data.primary_capabilities_tags,
+    };
+    registerAgency(payload, {
+      onSuccess: () => {
+        setStep(1);
+        localStorage.removeItem("step");
+        navigate("/agency/home", { replace: true });
+        reset();
+      },
+      onError: (err) => {
+        toast.error(
+          err?.response?.data?.message ||
+            "An error occured during registration. Try again later!",
+        );
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (coordinates?.latitude) {
+      setValue("latitude", coordinates.latitude);
+      setValue("longitude", coordinates.longitude);
+    }
+  }, [coordinates, setValue]);
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Operational Coverage Radius in km</span>
+            <input
+              type="number"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("coverage_radius_km", {
+                required: "This field is required",
+              })}
+            />
+          </label>
+          {errors?.coverage_radius_km ? (
+            <p>{errors?.coverage_radius_km.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Emergency Hotline No.</span>
+            <input
+              type="text"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("hotline_no", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.hotline_no ? <p>{errors?.hotline_no.message}</p> : ""}
+        </div>
+        <div>
+          <h2>Primary Capabilities</h2>
+          <div>
+            <label htmlFor="med">MEDICAL</label>
+            <input
+              id="med"
+              value="MEDICAL"
+              disabled={isPending}
+              type="checkbox"
+              {...register("primary_capabilities_tags", {
+                validate: (value) =>
+                  value.length > 0 || "Select at least one of these tags",
+              })}
+            />
+          </div>
+          <div>
+            <label htmlFor="water">WATER RESCUE</label>
+            <input
+              id="water"
+              value="WATER RESCUE"
+              disabled={isPending}
+              type="checkbox"
+              {...register("primary_capabilities_tags", {
+                validate: (value) =>
+                  value.length > 0 || "Select at least one of these tags",
+              })}
+            />
+          </div>
+          <div>
+            <label htmlFor="fire">FIRE RESCUE</label>
+            <input
+              id="fire"
+              value="FIRE RESCUE"
+              disabled={isPending}
+              type="checkbox"
+              {...register("primary_capabilities_tags", {
+                validate: (value) =>
+                  value.length > 0 || "Select at least one of these tags",
+              })}
+            />
+          </div>
+          <div>
+            <label htmlFor="food">FOOD DISTRIBUTION</label>
+            <input
+              id="food"
+              value="FOOD DISTRIBUTION"
+              disabled={isPending}
+              type="checkbox"
+              {...register("primary_capabilities_tags", {
+                validate: (value) =>
+                  value.length > 0 || "Select at least one of these tags",
+              })}
+            />
+          </div>
+          <div>
+            <label htmlFor="shelter">SHELTER</label>
+            <input
+              id="shelter"
+              value="SHELTER"
+              disabled={isPending}
+              type="checkbox"
+              {...register("primary_capabilities_tags", {
+                validate: (value) =>
+                  value.length > 0 || "Select at least one of these tags",
+              })}
+            />
+          </div>
+          <div>
+            <label htmlFor="clearance">HEAVY CLEARANACE</label>
+            <input
+              id="clearance"
+              value="HEAVY CLEARANACE"
+              disabled={isPending}
+              type="checkbox"
+              {...register("primary_capabilities_tags", {
+                validate: (value) =>
+                  value.length > 0 || "Select at least one of these tags",
+              })}
+            />
+          </div>
+          {errors?.primary_capabilities_tags ? (
+            <p>{errors?.primary_capabilities_tags.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Full Address</span>
+            <input
+              type="text"
+              disabled={isPending}
+              className="input input-primary"
+              {...register("hq_location_address", {
+                required: "This filed is required",
+                minLength: {
+                  value: 15,
+                  message: "Minimum 15 chartacters address has to be entered",
+                },
+              })}
+            />
+          </label>
+          {errors?.hq_location_address ? (
+            <p>{errors?.hq_location_address.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <label>Location Coordinates</label>
+          <input
+            type="text"
+            disabled={isPending}
+            placeholder="latitude"
+            {...register("latitude", {
+              required: "Both the fields are required!",
+            })}
+          />
+          <input
+            type="text"
+            disabled={isPending}
+            placeholder="longitude"
+            {...register("longitude", {
+              required: "Both the fields are required!",
+            })}
+          />
+          <button type="button" disabled={loading} onClick={fetchLocation}>
+            {loading ? "Fetching..." : "Get Location"}
+          </button>
+          {error ? <p>{error}</p> : ""}
+          {errors?.latitude || errors?.longitude ? (
+            <p>{errors?.latitude?.message || errors?.longitude?.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Password For Future Login</span>
+            <input
+              type="password"
+              disabled={isPending}
+              {...register("password", {
+                required: "This field is required",
+                pattern: {
+                  value:
+                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                  message:
+                    "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character",
+                },
+              })}
+            />
+          </label>
+          {errors?.password ? <p>{errors?.password.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Confirm Password</span>
+            <input
+              type="password"
+              disabled={isPending}
+              {...register("confirmPassword", {
+                required: "This field is required!",
+                validate: (value) =>
+                  value === getValues("password") || "Passwords do not match",
+              })}
+            />
+          </label>
+          {errors?.confirmPassword ? (
+            <p>{errors?.confirmPassword.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <button className="btn btn-primary" disabled={isPending}>
+            register
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const apiVerifyAgencyPersonnel = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/verifyAgencyPersonnel",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyAgencyPersonnel = () => {
+  const { mutate: verifyPersonnel, isPending } = useMutation({
+    mutationFn: apiVerifyAgencyPersonnel,
+  });
+  return { verifyPersonnel, isPending };
+};
+
+const apiVerifyEmail = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/verifyEmail",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyEmail = () => {
+  const { mutate: verifyEmail, isPending } = useMutation({
+    mutationFn: apiVerifyEmail,
+  });
+  return { verifyEmail, isPending };
+};
+
+const apiVerifySmsOtp = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/verifyDigiOtp",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifySmsOtp = () => {
+  const { mutate: verifySmsOtp, isPending } = useMutation({
+    mutationFn: apiVerifySmsOtp,
+  });
+  return { verifySmsOtp, isPending };
+};
+
+export const AgencyRegister = () => {
+  const [step, setStep] = useState(() => {
+    const step = localStorage.getItem("step") || 1;
+    return Number(step);
+  });
+  const [officialId, setOfficialId] = useState("");
+  const [maskedPhone, setMaskedPhone] = useState("XXXXXXXXXX");
+  const [email, setEmail] = useState("");
+  const [agency, setAgency] = useState("");
+
+  return (
+    <div>
+      <h1>Agency Registration</h1>
+      {step === 1 ? (
+        <AgencyVerification setStep={setStep} setAgency={setAgency} />
+      ) : (
+        ""
+      )}
+      {step === 2 ? (
+        <PersonnelVerification
+          setStep={setStep}
+          setOfficialId={setOfficialId}
+          setMaskedPhone={setMaskedPhone}
+        />
+      ) : (
+        ""
+      )}
+      {step === 3 ? (
+        <SMSOtp
+          setStep={setStep}
+          officialId={officialId}
+          maskedPhone={maskedPhone}
+        />
+      ) : (
+        ""
+      )}
+      {step === 4 ? (
+        <EmailVerification setStep={setStep} setEmail={setEmail} />
+      ) : (
+        ""
+      )}
+      {step === 5 ? <EmailOtp setStep={setStep} email={email} /> : ""}
+      {step === 6 ? (
+        <AgencyRegistration setStep={setStep} agency={agency} />
+      ) : (
+        ""
+      )}
+    </div>
+  );
+};
+
+const apiAgencyLogin = async (payload) => {
+  const response = await axios.post(
+    "http://localhost:3000/api/agency/login",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useAgencyLogin = () => {
+  const { mutate: agencyLogin, isPending } = useMutation({
+    mutationFn: apiAgencyLogin,
+  });
+  return { agencyLogin, isPending };
+};
+
+export const AgencyLogin = () => {
+  const { agencyLogin, isPending } = useAgencyLogin();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm();
+
+  const submitHandler = (payload) => {
+    agencyLogin(payload, {
+      onSuccess: (data) => {
+        queryClient.setQueryData(["agency"], data.agency);
+        navigate("/agency/home", { replace: true });
+      },
+      onError: (err) =>
+        toast.error(err.response?.data?.message || "Invalid Credentials"),
+      onSettled: () => reset(),
+    });
+  };
+  return (
+    <div>
+      <h1>Agency Login</h1>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Agency ID</span>
+            <input
+              type="text"
+              disabled={isPending}
+              {...register("agency_id", {
+                required: "This field is required",
+              })}
+            />
+          </label>
+          {errors?.agency_id ? <p>{errors.agency_id.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Password</span>
+            <input
+              type="password"
+              disabled={isPending}
+              {...register("password", {
+                required: "This field is required!",
+                pattern: {
+                  value:
+                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                  message:
+                    "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character",
+                },
+              })}
+            />
+          </label>
+          {errors?.password ? <p>{errors.password.message}</p> : ""}
+        </div>
+        <div>
+          <button className="btn btn-primary uppercase" disabled={isPending}>
+            login
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+const apiGetMyAgency = async () => {
+  const response = await axios.get("http://localhost:3000/api/agency/me", {
+    withCredentials: true,
+  });
+  return response.data;
+};
+
+const useGetMyAgency = () => {
+  const { data: agency, isPending } = useQuery({
+    queryKey: ["agency"],
+    queryFn: apiGetMyAgency,
+    staleTime: 1000 * 60 * 5,
+  });
+  return { agency, isPending };
+};
+
+export const AgencyHome = () => {
+  const { agency, isPending } = useGetMyAgency();
+  if (isPending) return <h1>Loading...</h1>;
+  return (
+    <div>
+      <h1>{agency.agency_name}</h1>
+      <p>{agency.authorized_state}</p>
+      <p>{agency.hotline_no}</p>
+      <p>{agency.coverage_radius_km}</p>
+    </div>
+  );
+};
+
+export const GovRegister = () => {
+  return (
+    <div>
+      <h1>Government Registration</h1>
+      <Link to="/gov/login">Already registered? then login...</Link>
+    </div>
+  );
+};
+export const GovLogin = () => {
+  return (
+    <div>
+      <h1>Government Login</h1>
+    </div>
+  );
+};
+
+export default App;
