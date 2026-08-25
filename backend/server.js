@@ -234,7 +234,8 @@ const registerAgency = catchAsync(async (req, res) => {
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
   res.cookie("my_jwt_token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
+    sameSite: "none",
     maxAge: 1000 * 60 * 60 * 2,
   });
   return res.status(200).json({ agency });
@@ -276,7 +277,8 @@ const loginAgency = catchAsync(async (req, res) => {
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
   res.cookie("my_jwt_token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
+    sameSite: "none",
     maxAge: 1000 * 60 * 60 * 2,
   });
   return res.status(200).json({ agency });
