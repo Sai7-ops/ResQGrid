@@ -134,9 +134,12 @@ const AgencyInbox = () => {
 };
 
 const apiGetAgencyUnits = async () => {
-  const response = await axios.get("http://localhost:3000/api/agency/units", {
-    withCredentials: true,
-  });
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/agency/units",
+    {
+      withCredentials: true,
+    },
+  );
   return response.data;
 };
 
@@ -267,7 +270,7 @@ const useGeolocation = (options = {}) => {
 
 const apiVerifyAgency = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/verifyAgency",
+    "https://resqgrid-x51v.onrender.com/api/agency/verifyAgency",
     payload,
     {
       headers: {
@@ -661,7 +664,7 @@ const EmailVerification = ({ setStep, setEmail }) => {
 
 const apiVerifyEmailOtp = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/verifyEmailOtp",
+    "https://resqgrid-x51v.onrender.com/api/agency/verifyEmailOtp",
     payload,
     {
       headers: {
@@ -867,7 +870,7 @@ export const EmailOtp = ({ setStep, email }) => {
 
 const apiRegisterAgency = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/register",
+    "https://resqgrid-x51v.onrender.com/api/agency/register",
     payload,
     {
       headers: {
@@ -1161,7 +1164,7 @@ export const AgencyRegistration = ({ agency, setStep }) => {
 
 const apiVerifyAgencyPersonnel = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/verifyAgencyPersonnel",
+    "https://resqgrid-x51v.onrender.com/api/agency/verifyAgencyPersonnel",
     payload,
     {
       headers: {
@@ -1182,7 +1185,7 @@ const useVerifyAgencyPersonnel = () => {
 
 const apiVerifyEmail = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/verifyEmail",
+    "https://resqgrid-x51v.onrender.com/api/agency/verifyEmail",
     payload,
     {
       headers: {
@@ -1203,7 +1206,7 @@ const useVerifyEmail = () => {
 
 const apiVerifySmsOtp = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/verifyDigiOtp",
+    "https://resqgrid-x51v.onrender.com/api/agency/verifyDigiOtp",
     payload,
     {
       headers: {
@@ -1275,7 +1278,7 @@ export const AgencyRegister = () => {
 
 const apiAgencyLogin = async (payload) => {
   const response = await axios.post(
-    "http://localhost:3000/api/agency/login",
+    "https://resqgrid-x51v.onrender.com/api/agency/login",
     payload,
     {
       headers: {
@@ -1363,9 +1366,12 @@ export const AgencyLogin = () => {
 };
 
 const apiGetMyAgency = async () => {
-  const response = await axios.get("http://localhost:3000/api/agency/me", {
-    withCredentials: true,
-  });
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/agency/me",
+    {
+      withCredentials: true,
+    },
+  );
   return response.data;
 };
 
