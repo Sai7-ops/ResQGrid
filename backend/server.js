@@ -10,7 +10,7 @@ import { redis } from "./config/redis.js";
 import { addEmailJob } from "./queues/emailQueue.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import cookie from "cookie";
+import * as cookie from "cookie";
 import "./queues/emailQueue.js";
 
 dotenv.config();
