@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(
   cors({
-    origin: ["https://res-q-grid-delta.vercel.app", "http://localhost:5173"],
+    origin: "https://res-q-grid-delta.vercel.app",
     credentials: true,
   }),
 );
@@ -32,7 +32,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: "https://res-q-grid-delta.vercel.app",
     methods: ["GET", "POST"],
     credentials: true,
   },
