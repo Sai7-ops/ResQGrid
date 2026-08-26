@@ -66,7 +66,9 @@ io.use(async (socket, next) => {
     socket.agency = result.rows[0];
     return next();
   } catch (err) {
-    return next(new Error("Authentication error: Invalid token"));
+    console.error("🔥 SOCKET AUTH ERROR:", err.message);
+    console.error(err);
+    return next(new Error(`Authentication error: ${err.message}`));
   }
 });
 
