@@ -7,6 +7,7 @@ import {
   Navigate,
   Outlet,
   NavLink,
+  replace,
 } from "react-router-dom";
 import "./App.css";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -235,9 +236,13 @@ const apiLogoutUser = async (payload) => {
 };
 
 const useLogoutUser = () => {
+  const navigate = useNavigate();
   const { mutate: logoutUser, isPending } = useMutation({
     mutationFn: apiLogoutUser,
-    onSuccess: () => toast.error("Logged out successfully"),
+    onSuccess: () => {
+      navigate("/", { replace: true });
+      toast.error("Logged out successfully");
+    },
     onError: () => toast.error("An error occured while logging out"),
   });
   return { logoutUser, isPending };
@@ -977,7 +982,11 @@ export const UserRegister = () => {
         ""
       )}
       {step === 2 ? (
-        <UserSMSOtp maskedPhone={maskedPhone} aadhaar_no={aadhaar_no} setStep={setStep}/>
+        <UserSMSOtp
+          maskedPhone={maskedPhone}
+          aadhaar_no={aadhaar_no}
+          setStep={setStep}
+        />
       ) : (
         ""
       )}
