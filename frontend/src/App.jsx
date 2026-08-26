@@ -7,7 +7,6 @@ import {
   Navigate,
   Outlet,
   NavLink,
-  replace,
 } from "react-router-dom";
 import "./App.css";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -54,7 +53,7 @@ function App() {
             <Route path="/user" element={<UserLayout />}>
               <Route path="home" element={<UserHome />} />
               <Route path="sosForm" element={<UserSOSForm />} />
-              <Route path="sosInBox" element={<UserSOSInbox />} />
+              <Route path="sosInbox" element={<UserSOSInbox />} />
               <Route path="inbox" element={<UserInbox />} />
             </Route>
           </Route>
@@ -1103,9 +1102,13 @@ const apiLogoutAgency = async (payload) => {
 };
 
 const useLogoutAgency = () => {
+  const navigate = useNavigate();
   const { mutate: logoutAgency, isPending } = useMutation({
     mutationFn: apiLogoutAgency,
-    onSuccess: () => toast.error("Logged out successfully"),
+    onSuccess: () => {
+      navigate("/", { replace: true });
+      toast.error("Logged out successfully");
+    },
     onError: () => toast.error("An error occured while logging out"),
   });
   return { logoutAgency, isPending };
@@ -1123,6 +1126,7 @@ const AgencyLayout = () => {
         <NavLink to="/agency/dashboard">Dashboard</NavLink>
         <NavLink to="/agency/inbox">Inbox</NavLink>
         <NavLink to="/agency/units">Units</NavLink>
+        <NavLink to="/agency/sosInbox">SOS Inbox</NavLink>
         <button disabled={isPending} onClick={logoutHandler}>
           Logout
         </button>
