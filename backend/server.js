@@ -473,13 +473,6 @@ const verifyUserSmsOtp = catchAsync(async (req, res) => {
 });
 
 const registerUser = catchAsync(async (req, res) => {
-  const verified = await redis.get(`verified:user:${aadhaar_no}`);
-
-  if (!verified) {
-    return res.status(403).json({
-      message: "User identity has not been verified",
-    });
-  }
   const {
     aadhaar_no,
     mobile_no,
@@ -491,6 +484,13 @@ const registerUser = catchAsync(async (req, res) => {
     email,
     password,
   } = req.body;
+  const verified = await redis.get(`verified:user:${aadhaar_no}`);
+
+  if (!verified) {
+    return res.status(403).json({
+      message: "User identity has not been verified",
+    });
+  }
   const password_hash = await bcrypt.hash(password, 10);
 
   const result = await pool.query(
