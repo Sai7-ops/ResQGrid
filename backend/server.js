@@ -660,6 +660,7 @@ const triggerSos = catchAsync(async (req, res) => {
     });
 
   const io = req.app.get("io");
+  console.log(agencies);
   agencies.forEach((agency) => {
     io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
       sos_id: sos_request.sos_id,
