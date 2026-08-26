@@ -565,7 +565,7 @@ const loginUser = catchAsync(async (req, res) => {
 
 const getMe = catchAsync(async (req, res) => {
   const user_id = req.user.user_id;
-  const result = await pool.query(`select * from users where aadhaar_no=$1`, [
+  const result = await pool.query(`select * from users where user_id=$1`, [
     user_id,
   ]);
   if (result.rowCount === 0)
