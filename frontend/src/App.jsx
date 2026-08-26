@@ -11,6 +11,7 @@ import {
 import "./App.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
+import { SocketProvider, useSocket } from "../contexts/SocketContext";
 import {
   useMutation,
   QueryClient,
@@ -44,12 +45,16 @@ function App() {
               <Route path="home" element={<AgencyHome />} />
               <Route path="dashboard" element={<AgencyDashboard />} />
               <Route path="inbox" element={<AgencyInbox />} />
+              <Route path="sosInbox" element={<AgencySosInbox />} />
               <Route path="units" element={<AgencyUnits />} />
             </Route>
           </Route>
           <Route element={<UserRouteProtector />}>
             <Route path="/user" element={<UserLayout />}>
               <Route path="home" element={<UserHome />} />
+              <Route path="sosForm" element={<UserSOSForm />} />
+              <Route path="sosInBox" element={<UserSOSInbox />} />
+              <Route path="inbox" element={<UserInbox />} />
             </Route>
           </Route>
         </Routes>
@@ -66,6 +71,154 @@ export const Home = () => {
       <Link to="/user/register">User</Link>
       <Link to="/agency/register">Agency</Link>
       <Link to="/gov/register">Government</Link>
+    </div>
+  );
+};
+
+const UserSOSInbox = () => {
+  return <h1>User SOS Inbox</h1>;
+};
+
+const UserInbox = () => {
+  return <h1>User Inbox</h1>;
+};
+
+const AgencySosInbox = () => {
+  const socket = useSocket();
+  const [sosAlerts, setSosAlerts] = useState([]);
+  const { agencyUnits, isPending } = useGetAgencyUnits();
+  const [claimingUnitId, setClaimingUnitId] = useState(null);
+  const queryClient = useQueryClient();
+
+  const handleClaimSos = ({ unit_id, sos_id, unit_type }) => {
+    if (!socket) {
+      toast.error("Socket is not connected!");
+      return;
+    }
+    setClaimingUnitId(claimingUnitId === unit_id);
+
+    const payload = {
+      sos_id,
+      unit_type,
+      unit_id,
+    };
+    socket.emit("CLAIM_SOS_CAPABILITY", payload, (response) => {
+      setClaimingUnitId(claimingUnitId === unit_id);
+      if (response?.success) {
+        toast.success(
+          `Successfully claimed SOS #${sos_id}! Unit ${unit_id} is dispatched.`,
+          queryClient.invalidateQueries({
+            queryKey: ["agencyUnits"],
+          }),
+        );
+      } else {
+        toast.error(`Failed to claim: ${response?.message || "Unknown error"}`);
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewSosAlert = (payload) => {
+      setSosAlerts((prevAlerts) => {
+        const alreadyExists = prevAlerts.some(
+          (item) => item.sos_id === payload.sos_id,
+        );
+        if (alreadyExists) return prevAlerts;
+        return [payload, ...prevAlerts];
+      });
+
+      try {
+        const audio = new Audio("/alert.mp3");
+        audio.play().catch(() => {});
+      } catch (err) {
+        console.error("Audio playback error", err);
+      }
+    };
+
+    const handleCapabilityClaimed = ({ sos_id, claimed_unit_type }) => {
+      setSosAlerts((prevAlerts) => {
+        return prevAlerts.map((alert) => {
+          if (alert.sos_id !== sos_id) return alert;
+
+          const remainingCapabilities = alert.matched_capabilities.filter(
+            (tag) => tag !== claimed_unit_type,
+          );
+
+          return {
+            ...alert,
+            matched_capabilities: remainingCapabilities,
+          };
+        });
+      });
+    };
+    socket.on("NEW_SOS_ALERT", handleNewSosAlert);
+    socket.on("CAPABILITY_CLAIMED", handleCapabilityClaimed);
+
+    return () => {
+      socket.off("NEW_SOS_ALERT", handleNewSosAlert);
+      socket.off("CAPABILITY_CLAIMED", handleCapabilityClaimed);
+    };
+  }, [socket]);
+
+  if (isPending) return <h1>Loading...</h1>;
+
+  const availableUnits = agencyUnits.filter(
+    (unit) => unit.status === "AVAILABLE",
+  );
+
+  return (
+    <div>
+      <h1>SOS Alerts</h1>
+      {sosAlerts.length === 0 ? (
+        <p>No active SOS alerts in your area at the moment</p>
+      ) : (
+        <div>
+          {sosAlerts.map((alert) => (
+            <div key={alert.sos_id}>
+              <p>
+                {alert.sos_id} - {alert.disaster_type}
+              </p>
+              <p>{(alert.distance_meters / 1000).toFixed(2)} km away</p>
+              <p>{alert.description || "No description provided."}</p>
+              <div>
+                Matched Roles:{" "}
+                {(alert.matched_capabilities || []).map((tag) => (
+                  <p>{tag}</p>
+                ))}
+              </div>
+              {alert.matched_capabilities.map((tag) => {
+                const matching_units = availableUnits.filter(
+                  (unit) => unit.unit_type === tag,
+                );
+                return (
+                  <div>
+                    {matching_units.map((unit) => (
+                      <div key={unit.unit_id}>
+                        <p>{unit.unit_name}</p>
+                        <p>{unit.unit_id}</p>
+                        <button
+                          disabled={claimingUnitId === unit.unit_id}
+                          onClick={() =>
+                            handleClaimSos({
+                              unit_id: unit.unit_id,
+                              sos_id: alert.sos_id,
+                              unit_type: unit.unit_type,
+                            })
+                          }
+                        >
+                          Claim SOS
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -88,6 +241,131 @@ const UserHome = () => {
   return (
     <div>
       <p>Welcome {user.name}</p>
+      <NavLink to="/user/sosForm">Trigger SOS</NavLink>
+    </div>
+  );
+};
+
+const apiTriggerSos = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/user/triggerSos",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useTriggerSos = () => {
+  const { mutate: triggerSos, isPending } = useMutation({
+    mutationFn: apiTriggerSos,
+  });
+  return { triggerSos, isPending };
+};
+
+const UserSOSForm = () => {
+  const { coordinates, loading, error, fetchLocation } = useGeolocation();
+  const { triggerSos, isPending } = useTriggerSos();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setValue,
+  } = useForm();
+
+  const submitHandler = (data) => {
+    const payload = {
+      latitude: data.latitude,
+      longitude: data.longitude,
+      disaster_type: data.disaster_type,
+      is_victim: data.is_victim || false,
+      description: data.description || null,
+    };
+    triggerSos(payload, {
+      onSuccess: () => {
+        toast.success("SOS triggered successfully");
+        reset();
+      },
+      onError: (err) => {
+        toast.error(err.response?.data?.message || "Failed to trigger SOS");
+      },
+    });
+  };
+  useEffect(() => {
+    if (coordinates?.latitude) {
+      setValue("latitude", coordinates.latitude);
+      setValue("longitude", coordinates.longitude);
+    }
+  }, [coordinates, setValue]);
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Disaster Type</span>
+            <select
+              className="select select-primary"
+              {...register("disaster_type", {
+                required: "This field is required!",
+              })}
+            >
+              <option value="flood">Flood</option>
+              <option value="fire">Fire</option>
+              <option value="earthquake">Earthquake</option>
+              <option value="cyclone">Cyclone</option>
+              <option value="medical_emergency">Medical Emergency</option>
+              <option value="crowd_hazard">Crowd Hazard</option>
+            </select>
+          </label>
+          {errors?.disaster_type ? <p>{errors.disaster_type.message}</p> : ""}
+        </div>
+        <div>
+          <label>Location Coordinates</label>
+          <input
+            type="text"
+            disabled={isPending}
+            placeholder="latitude"
+            {...register("latitude", {
+              required: "Both the fields are required!",
+            })}
+          />
+          <input
+            type="text"
+            disabled={isPending}
+            placeholder="longitude"
+            {...register("longitude", {
+              required: "Both the fields are required!",
+            })}
+          />
+          <button type="button" disabled={loading} onClick={fetchLocation}>
+            {loading ? "Fetching..." : "Get Location"}
+          </button>
+          {error ? <p>{error}</p> : ""}
+          {errors?.latitude || errors?.longitude ? (
+            <p>{errors?.latitude?.message || errors?.longitude?.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <label htmlFor="is_victim">Are you the victim?</label>
+          <input id="is_victim" type="checkbox" {...register("is_victim")} />
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Description (Optional)</span>
+            <input type="text" {...register("description")} />
+          </label>
+        </div>
+        <div>
+          <button className="btn btn-danger">Trigger SOS</button>
+        </div>
+      </form>
     </div>
   );
 };
@@ -774,7 +1052,7 @@ export const UserLogin = () => {
 
 const AgencyLayout = () => {
   return (
-    <>
+    <SocketProvider>
       <header>
         <NavLink to="/agency/home">Home</NavLink>
         <NavLink to="/agency/dashboard">Dashboard</NavLink>
@@ -785,7 +1063,7 @@ const AgencyLayout = () => {
         <Outlet />
       </main>
       <footer>footer</footer>
-    </>
+    </SocketProvider>
   );
 };
 
@@ -794,7 +1072,11 @@ const AgencyDashboard = () => {
 };
 
 const AgencyInbox = () => {
-  return <h1>Inbox</h1>;
+  return (
+    <div>
+      <h1>Inbox</h1>
+    </div>
+  );
 };
 
 const apiGetAgencyUnits = async () => {
@@ -1710,10 +1992,10 @@ export const AgencyRegistration = ({ agency, setStep }) => {
             />
           </div>
           <div>
-            <label htmlFor="clearance">HEAVY CLEARANACE</label>
+            <label htmlFor="clearance">HEAVY CLEARANCE</label>
             <input
               id="clearance"
-              value="HEAVY CLEARANACE"
+              value="HEAVY CLEARANCE"
               disabled={isPending}
               type="checkbox"
               {...register("primary_capabilities_tags", {

@@ -10,6 +10,7 @@ import { redis } from "./config/redis.js";
 import { addEmailJob } from "./queues/emailQueue.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import cookie from "cookie";
 import "./queues/emailQueue.js";
 
 dotenv.config();
@@ -20,7 +21,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(
   cors({
-    origin: "https://res-q-grid-delta.vercel.app" || "http://localhost:5173",
+    origin: ["https://res-q-grid-delta.vercel.app", "http://localhost:5173"],
     credentials: true,
   }),
 );
@@ -39,8 +40,108 @@ const io = new Server(httpServer, {
 
 app.set("io", io);
 
+io.use(async (socket, next) => {
+  try {
+    const rawCookies = socket.handshake.headers.cookie;
+    if (!rawCookies)
+      return next(new Error("Authentication error: No cookies found"));
+    const parsedCookies = cookie.parse(rawCookies);
+    const token = parsedCookies.my_jwt_token;
+
+    if (!token)
+      return next(new Error("Authentication error: No token provided"));
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const result = await pool.query(
+      `SELECT agency_id, agency_name, zone_id, primary_capabilities_tags,
+              ST_AsGeoJSON(hq_coordinates)::json AS hq_location
+       FROM agencies WHERE agency_id = $1`,
+      [decoded.agency_id],
+    );
+
+    if (result.rowCount === 0) {
+      return next(new Error("Authentication error: Agency not found"));
+    }
+
+    socket.agency = result.rows[0];
+    return next();
+  } catch (err) {
+    return next(new Error("Authentication error: Invalid token"));
+  }
+});
+
 io.on("connection", (socket) => {
-  console.log(`Client connected: ${socket.id}`);
+  const { agency_id, agency_name, zone_id, primary_capabilities_tags } =
+    socket.agency;
+
+  socket.join(`agency_${agency_id}`);
+  socket.join(zone_id);
+
+  if (Array.isArray(primary_capabilities_tags)) {
+    primary_capabilities_tags.forEach((tag) => {
+      const sanitizedTag = tag.trim().replace(/\s+/g, "_").toUpperCase();
+      socket.join(`${zone_id}_${sanitizedTag}`);
+    });
+  }
+
+  socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
+    const { sos_id, unit_type, unit_id } = payload;
+    try {
+      const insertDispatch = await pool.query(
+        `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
+           VALUES ($1, $2, $3, $4, 'en_route')
+           ON CONFLICT (sos_id, unit_type) DO NOTHING
+           RETURNING *`,
+        [sos_id, agency_id, unit_type, unit_id],
+      );
+
+      if (insertDispatch.rowCount === 0) {
+        return (
+          typeof callback === "function" &&
+          callback({
+            success: false,
+            message: `The '${unit_type}' role for SOS #${sos_id} was already claimed by another agency.`,
+          })
+        );
+      }
+
+      const result = await pool.query(
+        `SELECT * from agency_units where unit_id=$1`,
+        [unit_id],
+      );
+      const unit_name = result.rows[0].unit_name;
+
+      await pool.query(
+        `UPDATE agency_units SET status = 'EN ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
+        [unit_id],
+      );
+
+      if (typeof callback === "function") {
+        callback({
+          success: true,
+          dispatch: insertDispatch.rows[0],
+        });
+      }
+
+      io.emit("CAPABILITY_CLAIMED", {
+        sos_id,
+        claimed_unit_type: unit_type,
+        claimed_by_agency_id: agency_id,
+      });
+
+      io.to(`sos_user_${sos_id}`).emit("CITIZEN_UNIT_EN_ROUTE", {
+        sos_id,
+        agency_name,
+        unit_type,
+        unit_name,
+      });
+    } catch (err) {
+      console.error("Error claiming SOS capability:", err);
+      if (typeof callback === "function") {
+        callback({ success: false, message: "Internal server error." });
+      }
+    }
+  });
 
   socket.on("disconnect", () => {
     console.log(`Client disconnected: ${socket.id}`);
@@ -238,6 +339,7 @@ const registerAgency = catchAsync(async (req, res) => {
     sameSite: "none",
     maxAge: 1000 * 60 * 60 * 2,
   });
+
   return res.status(200).json({ agency });
 });
 
@@ -251,6 +353,24 @@ const verifyJWT = (req, res, next) => {
     }
     const decodedPayload = jwt.verify(token, JWT_SECRET);
     req.agency = decodedPayload;
+    return next();
+  } catch (err) {
+    return res.status(401).json({
+      message: "Invalid or expired token",
+    });
+  }
+};
+
+const verifyUserJWT = (req, res, next) => {
+  try {
+    const token = req.cookies.my_jwt_token;
+    if (!token) {
+      return res
+        .status(401)
+        .json({ message: "Access denied. No token provided" });
+    }
+    const decodedPayload = jwt.verify(token, JWT_SECRET);
+    req.user = decodedPayload;
     return next();
   } catch (err) {
     return res.status(401).json({
@@ -306,7 +426,7 @@ const getAgencyUnits = catchAsync(async (req, res) => {
   );
   if (result.rowCount === 0)
     return res
-      .status(404)
+      .status(200)
       .json({ message: "No units stored under this agency curently!" });
   const agency_units = result.rows;
   return res.status(200).json(agency_units);
@@ -328,8 +448,8 @@ const verifyUser = catchAsync(async (req, res) => {
     .padStart(user.mobile_no.length, "X");
 
   const otp = generateOTP();
-  await redis.set(`otp:aadhaar_no:${aadhaar_no}`, otp);
-  console.log(`OTP for ${official.official_id}: ${otp}`);
+  await redis.set(`otp:aadhaar_no:${aadhaar_no}`, otp, "EX", 300);
+  console.log(`OTP for ${aadhaar_no}: ${otp}`);
   return res.status(200).json({ maskedPhone, user });
 });
 
@@ -345,10 +465,21 @@ const verifyUserSmsOtp = catchAsync(async (req, res) => {
   if (storedOtp !== otp)
     return res.status(400).json({ message: "Invalid OTP!" });
 
+  await redis.del(`otp:aadhaar_no:${aadhaar_no}`);
+
+  await redis.set(`verified:user:${aadhaar_no}`, "true", "EX", 600);
+
   return res.status(200).json({ authorized: true });
 });
 
 const registerUser = catchAsync(async (req, res) => {
+  const verified = await redis.get(`verified:user:${aadhaar_no}`);
+
+  if (!verified) {
+    return res.status(403).json({
+      message: "User identity has not been verified",
+    });
+  }
   const {
     aadhaar_no,
     mobile_no,
@@ -389,11 +520,13 @@ const registerUser = catchAsync(async (req, res) => {
       password_hash,
     ],
   );
+
   const user = result.rows[0];
   const payload = {
     user_name: user.name,
-    aadhaar_no: user.aadhaar_no,
+    user_id: user.user_id,
   };
+
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
   res.cookie("my_jwt_token", token, {
     httpOnly: true,
@@ -401,6 +534,8 @@ const registerUser = catchAsync(async (req, res) => {
     sameSite: "none",
     maxAge: 1000 * 60 * 60 * 2,
   });
+
+  await redis.del(`verified:user:${aadhaar_no}`);
   return res.status(200).json(user);
 });
 
@@ -416,7 +551,7 @@ const loginUser = catchAsync(async (req, res) => {
   if (!isMatch) return res.status(400).json({ message: "Invalid Credentials" });
   const payload = {
     user_name: user.name,
-    aadhaar_no: user.aadhaar_no,
+    user_id: user.user_id,
   };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
   res.cookie("my_jwt_token", token, {
@@ -429,15 +564,193 @@ const loginUser = catchAsync(async (req, res) => {
 });
 
 const getMe = catchAsync(async (req, res) => {
-  const aadhaar_no = req.user.aadhaar_no;
+  const user_id = req.user.user_id;
   const result = await pool.query(`select * from users where aadhaar_no=$1`, [
-    aadhaar_no,
+    user_id,
   ]);
   if (result.rowCount === 0)
     return res.status(404).json({ message: "No users found" });
   const user = result.rows[0];
   return res.status(200).json(user);
 });
+
+export const DISASTER_CAPABILITY_MAPPING = {
+  flood: {
+    primary: ["WATER RESCUE", "MEDICAL"],
+    support: ["POLICE", "FOOD DISTRIBUTION", "SHELTER", "HEAVY CLEARANCE"],
+  },
+  fire: {
+    primary: ["FIRE RESCUE", "MEDICAL", "POLICE"],
+    support: ["SHELTER"],
+  },
+  earthquake: {
+    primary: ["HEAVY CLEARANCE", "MEDICAL", "POLICE"],
+    support: ["SHELTER", "FOOD DISTRIBUTION"],
+  },
+  cyclone: {
+    primary: ["WATER RESCUE", "HEAVY CLEARANCE", "MEDICAL"],
+    support: ["POLICE", "SHELTER", "FOOD DISTRIBUTION"],
+  },
+  medical_emergency: {
+    primary: ["MEDICAL"],
+    support: ["POLICE", "SHELTER"],
+  },
+  crowd_hazard: {
+    primary: ["POLICE", "MEDICAL", "HEAVY CLEARANCE"],
+    support: ["FOOD DISTRIBUTION", "SHELTER"],
+  },
+};
+
+function getBhopalZone(longitude, latitude) {
+  const CENTER_LAT = 23.25;
+  const CENTER_LNG = 77.4;
+
+  if (latitude >= CENTER_LAT) {
+    if (longitude >= CENTER_LNG) {
+      return {
+        zone_name: "Bhopal North",
+        zone_id: "Bpl_N",
+      };
+    } else {
+      return {
+        zone_name: "Bhopal West",
+        zone_id: "Bpl_W",
+      };
+    }
+  } else {
+    if (longitude >= CENTER_LNG) {
+      return {
+        zone_name: "Bhopal East",
+        zone_id: "Bpl_E",
+      };
+    } else {
+      return {
+        zone_name: "Bhopal South",
+        zone_id: "Bpl_S",
+      };
+    }
+  }
+}
+
+const triggerSos = catchAsync(async (req, res) => {
+  const { latitude, longitude, disaster_type, is_victim, description } =
+    req.body;
+  const user_id = req.user.user_id;
+  const result = await pool.query(
+    `insert into sos_requests(user_id, triggered_location, disaster_type, is_victim, description) values
+    ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, $4, $5,  $6) RETURNING sos_id,
+    user_id,
+    triggered_at,
+    status,
+    disaster_type,
+    is_victim,
+    description,
+    ST_AsGeoJSON(triggered_location)::json AS location`,
+    [user_id, longitude, latitude, disaster_type, is_victim, description],
+  );
+  const sos_request = result.rows[0];
+  const agencies = await findNearestAgencies(
+    sos_request.sos_id,
+    sos_request.location.coordinates,
+    sos_request.disaster_type,
+  );
+  if (agencies.length === 0)
+    return res
+      .status(404)
+      .json({
+        message: "SOS recorded but no agencies are currently available",
+      });
+
+  const io = req.app.get("io");
+  agencies.forEach((agency) => {
+    io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
+      sos_id: sos_request.sos_id,
+      disaster_type: sos_request.disaster_type,
+      description: sos_request.description,
+      location: [longitude, latitude],
+      triggered_at: sos_request.triggered_at,
+      matched_capabilities: agency.matched_tags,
+      distance_meters: agency.distance_meters,
+    });
+  });
+  res
+    .status(200)
+    .json({ message: "Agencies have been notified. Will be arriving shortly" });
+});
+
+export const findNearestAgencies = async (
+  sos_id,
+  coordinates,
+  disaster_type,
+) => {
+  const [longitude, latitude] = coordinates;
+  const requiredTags = DISASTER_CAPABILITY_MAPPING[disaster_type].primary;
+
+  const baseQuery = (bufferKm = 0) => `
+    SELECT 
+      a.agency_id,
+      a.agency_name,
+      a.hotline_no,
+      a.coverage_radius_km,
+      -- Aggregate all matching capabilities this agency provides for this SOS
+      ARRAY_AGG(DISTINCT tag) AS matched_tags,
+      ROUND(
+        ST_Distance(
+          a.hq_coordinates,
+          ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
+        )::numeric, 2
+      ) AS distance_meters
+    FROM agencies a,
+         UNNEST(a.primary_capabilities_tags) AS tag
+    WHERE tag = ANY($1::text[])
+      AND a.is_active = true
+      AND a.is_verified = true
+      AND ST_DWithin(
+        a.hq_coordinates,
+        ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
+        (a.coverage_radius_km + ${bufferKm}) * 1000
+      )
+      -- Exclude agencies that have already been dispatched or declined this SOS
+      AND a.agency_id NOT IN (
+        SELECT agency_id 
+        FROM sos_dispatches 
+        WHERE sos_id = $4
+      )
+    GROUP BY a.agency_id, a.agency_name, a.hotline_no, a.coverage_radius_km, a.hq_coordinates
+    ORDER BY distance_meters ASC;
+  `;
+
+  let result = await pool.query(baseQuery(0), [
+    requiredTags,
+    longitude,
+    latitude,
+    sos_id,
+  ]);
+
+  const foundTags = new Set(
+    result.rows.flatMap((r) => r.matched_tags || r.matched_agency_tag),
+  );
+
+  const missingTags = requiredTags.filter((tag) => !foundTags.has(tag));
+
+  if (missingTags.length > 0) {
+    const fallbackResult = await pool.query(baseQuery(5), [
+      missingTags,
+      longitude,
+      latitude,
+      sos_id,
+    ]);
+
+    const existingAgencyIds = new Set(result.rows.map((r) => r.agency_id));
+    const newAgencies = fallbackResult.rows.filter(
+      (r) => !existingAgencyIds.has(r.agency_id),
+    );
+
+    return [...result.rows, ...newAgencies];
+  }
+
+  return result.rows;
+};
 
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
@@ -452,7 +765,8 @@ app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
-app.get("/api/user/me", verifyJWT, getMe);
+app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
+app.get("/api/user/me", verifyUserJWT, getMe);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);
