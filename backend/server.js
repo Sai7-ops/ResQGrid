@@ -77,6 +77,9 @@ io.use(async (socket, next) => {
 });
 
 io.on("connection", (socket) => {
+  console.log("🔥🔥🔥 CONNECTION HANDLER REACHED");
+  console.log("Socket ID:", socket.id);
+  console.log("Socket agency:", socket.agency);
   const { agency_id, agency_name, zone_id, primary_capabilities_tags } =
     socket.agency;
 
