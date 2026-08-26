@@ -751,8 +751,15 @@ export const findNearestAgencies = async (
 };
 
 const logout = catchAsync(async (req, res) => {
-  res.clearCookie("token");
-  res.status(200).json({ message: "Logged out successfully" });
+  res.clearCookie("my_jwt_token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+  });
+
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
 });
 
 app.get("/api/agency/units", verifyJWT, getAgencyUnits);

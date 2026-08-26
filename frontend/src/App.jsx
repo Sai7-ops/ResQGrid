@@ -223,10 +223,10 @@ const AgencySosInbox = () => {
   );
 };
 
-const apiLogoutUser = async (payload) => {
+const apiLogoutUser = async () => {
   const response = await axios.post(
     "https://resqgrid-x51v.onrender.com/api/user/logout",
-    payload,
+    null,
     {
       withCredentials: true,
     },
@@ -249,7 +249,7 @@ const useLogoutUser = () => {
 const UserLayout = () => {
   const { logoutUser, isPending } = useLogoutUser();
   const logoutHandler = () => {
-    logoutUser({});
+    logoutUser();
   };
   return (
     <>
@@ -1090,10 +1090,10 @@ export const UserLogin = () => {
   );
 };
 
-const apiLogoutAgency = async (payload) => {
+const apiLogoutAgency = async () => {
   const response = await axios.post(
     "https://resqgrid-x51v.onrender.com/api/agency/logout",
-    payload,
+    null,
     {
       withCredentials: true,
     },
@@ -1117,7 +1117,7 @@ const useLogoutAgency = () => {
 const AgencyLayout = () => {
   const { logoutAgency, isPending } = useLogoutAgency();
   const logoutHandler = () => {
-    logoutAgency({});
+    logoutAgency();
   };
   return (
     <SocketProvider>
