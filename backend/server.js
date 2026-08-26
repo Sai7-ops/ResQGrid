@@ -10,7 +10,7 @@ import { redis } from "./config/redis.js";
 import { addEmailJob } from "./queues/emailQueue.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import * as cookie from "cookie";
+import {parse} from "cookie";
 import "./queues/emailQueue.js";
 
 dotenv.config();
@@ -45,7 +45,7 @@ io.use(async (socket, next) => {
     const rawCookies = socket.handshake.headers.cookie;
     if (!rawCookies)
       return next(new Error("Authentication error: No cookies found"));
-    const parsedCookies = cookie.parse(rawCookies);
+    const parsedCookies = parse(rawCookies);
     const token = parsedCookies.my_jwt_token;
 
     if (!token)
