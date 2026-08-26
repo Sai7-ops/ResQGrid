@@ -312,6 +312,133 @@ const getAgencyUnits = catchAsync(async (req, res) => {
   return res.status(200).json(agency_units);
 });
 
+const verifyUser = catchAsync(async (req, res) => {
+  const { aadhaar_no, full_name, dob, mobile_no } = req.body;
+  const result = await pool.query(
+    `select * from mock_digilocker where aadhaar_no=$1 and dob=$2 and mobile_no=$3`,
+    [aadhaar_no, dob, mobile_no],
+  );
+  if (result.rowCount === 0)
+    return res.status(404).json({
+      message: "The given credentials doesn't match the government database",
+    });
+  const user = result.rows[0];
+  const maskedPhone = user.mobile_no
+    .slice(-4)
+    .padStart(user.mobile_no.length, "X");
+
+  const otp = generateOTP();
+  await redis.set(`otp:aadhaar_no:${aadhaar_no}`, otp);
+  console.log(`OTP for ${official.official_id}: ${otp}`);
+  return res.status(200).json({ maskedPhone, user });
+});
+
+const verifyUserSmsOtp = catchAsync(async (req, res) => {
+  const { aadhaar_no, otp } = req.body;
+
+  const storedOtp = await redis.get(`otp:aadhaar_no:${aadhaar_no}`);
+  if (!storedOtp)
+    return res
+      .status(400)
+      .json({ message: "OTP has either expired or never sent" });
+
+  if (storedOtp !== otp)
+    return res.status(400).json({ message: "Invalid OTP!" });
+
+  return res.status(200).json({ authorized: true });
+});
+
+const registerUser = catchAsync(async (req, res) => {
+  const {
+    aadhaar_no,
+    mobile_no,
+    dob,
+    state,
+    age,
+    name,
+    address,
+    email,
+    password,
+  } = req.body;
+  const password_hash = await bcrypt.hash(password, 10);
+
+  const result = await pool.query(
+    `
+  INSERT INTO users (
+    aadhaar_no,
+    mobile_no,
+    dob,
+    age,
+    name,
+    state,
+    address,
+    email,
+    password_hash
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  RETURNING *
+  `,
+    [
+      aadhaar_no,
+      mobile_no,
+      dob,
+      age,
+      name,
+      state,
+      address,
+      email,
+      password_hash,
+    ],
+  );
+  const user = result.rows[0];
+  const payload = {
+    user_name: user.name,
+    aadhaar_no: user.aadhaar_no,
+  };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+  res.cookie("my_jwt_token", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 1000 * 60 * 60 * 2,
+  });
+  return res.status(200).json(user);
+});
+
+const loginUser = catchAsync(async (req, res) => {
+  const { aadhaar_no, password } = req.body;
+  const result = await pool.query(`select * from users where aadhaar_no=$1`, [
+    aadhaar_no,
+  ]);
+  if (result.rowCount === 0)
+    return res.status(400).json({ message: "Invalid Credentials" });
+  const user = result.rows[0];
+  const isMatch = await bcrypt.compare(password, user.password_hash);
+  if (!isMatch) return res.status(400).json({ message: "Invalid Credentials" });
+  const payload = {
+    user_name: user.name,
+    aadhaar_no: user.aadhaar_no,
+  };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+  res.cookie("my_jwt_token", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 1000 * 60 * 60 * 2,
+  });
+  return res.status(200).json(user);
+});
+
+const getMe = catchAsync(async (req, res) => {
+  const aadhaar_no = req.user.aadhaar_no;
+  const result = await pool.query(`select * from users where aadhaar_no=$1`, [
+    aadhaar_no,
+  ]);
+  if (result.rowCount === 0)
+    return res.status(404).json({ message: "No users found" });
+  const user = result.rows[0];
+  return res.status(200).json(user);
+});
+
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
 app.post("/api/agency/verifyDigiOtp", verifyDigiOtp);
@@ -321,6 +448,11 @@ app.post("/api/agency/register", registerAgency);
 app.post("/api/agency/login", loginAgency);
 app.get("/api/agency/me", verifyJWT, getMyAgency);
 app.get("/api/agency/units", verifyJWT, getAgencyUnits);
+app.post("/api/user/verifyUser", verifyUser);
+app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
+app.post("/api/user/register", registerUser);
+app.post("/api/user/login", loginUser);
+app.get("/api/user/me", verifyJWT, getMe);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);

@@ -47,6 +47,11 @@ function App() {
               <Route path="units" element={<AgencyUnits />} />
             </Route>
           </Route>
+          <Route element={<UserRouteProtector />}>
+            <Route path="/user" element={<UserLayout />}>
+              <Route path="home" element={<UserHome />} />
+            </Route>
+          </Route>
         </Routes>
       </BrowserRouter>
       <ReactQueryDevtools initialIsOpen={false} />
@@ -61,6 +66,28 @@ export const Home = () => {
       <Link to="/user/register">User</Link>
       <Link to="/agency/register">Agency</Link>
       <Link to="/gov/register">Government</Link>
+    </div>
+  );
+};
+
+const UserLayout = () => {
+  return (
+    <>
+      <header>header</header>
+      <main>
+        <Outlet />
+      </main>
+      <footer>footer</footer>
+    </>
+  );
+};
+
+const UserHome = () => {
+  const { user, isPending } = useUserAuth();
+  if (isPending) return <h1>Loading...</h1>;
+  return (
+    <div>
+      <p>Welcome {user.name}</p>
     </div>
   );
 };
@@ -83,6 +110,43 @@ const useAgencyAuth = () => {
   };
 };
 
+const apiGetMe = async () => {
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/user/me",
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useUserAuth = () => {
+  const {
+    data: user,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ["user"],
+    queryFn: apiGetMe,
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
+  return {
+    user,
+    isPending,
+    isAuthenticated: !isError && Boolean(user),
+  };
+};
+
+const UserRouteProtector = () => {
+  const { isPending, isAuthenticated } = useUserAuth();
+  if (isPending) {
+    return <h1>Checking authentication...</h1>;
+  }
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  return <Outlet />;
+};
+
 const AgencyRouteProtector = () => {
   const { isPending, isAuthenticated } = useAgencyAuth();
   if (isPending) {
@@ -92,18 +156,618 @@ const AgencyRouteProtector = () => {
   return <Outlet />;
 };
 
-export const UserRegister = () => {
+const apiVerifyUser = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/user/verifyUser",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyUser = () => {
+  const { mutate: verifyUser, isPending } = useMutation({
+    mutationFn: apiVerifyUser,
+  });
+  return { verifyUser, isPending };
+};
+
+const VerifyUserCredentials = ({
+  setStep,
+  setAadhaar_no,
+  setMaskedPhone,
+  setUser,
+}) => {
+  const { verifyUser, isPending } = useVerifyUser();
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+    reset,
+  } = useForm();
+  const submitHandler = (payload) => {
+    verifyUser(payload, {
+      onSuccess: (data) => {
+        setStep(2);
+        localStorage.setItem("step", 2);
+        setAadhaar_no(data.user.aadhaar_no);
+        setMaskedPhone(data.user.maskedPhone);
+        setUser(data.user);
+        reset();
+      },
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
+  };
   return (
-    <div>
-      <h1>User Registration</h1>
+    <>
+      <div>
+        <form onSubmit={handleSubmit(submitHandler)}>
+          <div>
+            <label className="floating-label">
+              <span>Name</span>
+              <input
+                type="text"
+                disabled={isPending}
+                {...register("full_name", {
+                  required: "This field is required",
+                })}
+              />
+            </label>
+            {errors?.full_name ? <p>{errors?.full_name.message}</p> : ""}
+          </div>
+          <div>
+            <label className="floating-label">
+              <span>Date of Birth</span>
+              <input
+                type="date"
+                disabled={isPending}
+                {...register("dob", {
+                  required: "This field is required",
+                })}
+              />
+            </label>
+            {errors?.dob ? <p>{errors?.dob.message}</p> : ""}
+          </div>
+          <div>
+            <label className="floating-label">
+              <span>Aadhaar No.</span>
+              <input
+                type="text"
+                disabled={isPending}
+                {...register("aadhaar_no", {
+                  required: "This field is required",
+                  maxLength: {
+                    value: 12,
+                    message: "Aadhaar number must be exactly 12 digits",
+                  },
+                  minLength: {
+                    value: 12,
+                    message: "Aadhaar number must be exactly 12 digits",
+                  },
+                })}
+              />
+            </label>
+            {errors?.aadhaar_no ? <p>{errors?.aadhaar_no.message}</p> : ""}
+          </div>
+          <div>
+            <label className="floating-label">
+              <span>Mobile No.</span>
+              <input
+                type="text"
+                disabled={isPending}
+                {...register("mobile_no", {
+                  required: "This field is required",
+                  maxLength: {
+                    value: 10,
+                    message: "Mobile number must be exactly 10 digits",
+                  },
+                  minLength: {
+                    value: 10,
+                    message: "Mobile number must be exactly 10 digits",
+                  },
+                })}
+              />
+            </label>
+            {errors?.mobile_no ? <p>{errors?.mobile_no.message}</p> : ""}
+          </div>
+          <div>
+            <button className="btn btn-primary uppercase">next</button>
+          </div>
+        </form>
+      </div>
       <Link to="/user/login">Already registered? then login...</Link>
+    </>
+  );
+};
+
+const apiVerifyUserSms = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/user/verifyUserSmsOtp",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyUserSmsOtp = () => {
+  const { mutate: verifyUserSmsOtp, isPending } = useMutation({
+    mutationFn: apiVerifyUserSms,
+  });
+  return { verifyUserSmsOtp, isPending };
+};
+
+export const UserSMSOtp = ({ setStep, maskedPhone, aadhaar_no }) => {
+  const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
+  const inputRefs = useRef([]);
+  const [serverError, setServerError] = useState(null);
+
+  const {
+    handleSubmit,
+    setValue,
+    setError,
+    clearErrors,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      otp: "",
+    },
+  });
+
+  const handleChange = (index, e) => {
+    const val = e.target.value;
+
+    if (val && !/^\d+$/.test(val)) return;
+
+    const newOtp = [...otpValues];
+    newOtp[index] = val ? val.slice(-1) : "";
+    setOtpValues(newOtp);
+
+    const fullOtp = newOtp.join("");
+    setValue("otp", fullOtp);
+
+    if (fullOtp.length === 6) {
+      clearErrors("otp");
+    }
+
+    if (val && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otpValues[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").trim().slice(0, 6);
+
+    if (/^\d+$/.test(pastedData)) {
+      const digits = pastedData.split("");
+      const newOtp = [...otpValues];
+
+      digits.forEach((digit, idx) => {
+        if (idx < 6) newOtp[idx] = digit;
+      });
+
+      setOtpValues(newOtp);
+      setValue("otp", newOtp.join(""));
+      clearErrors("otp");
+
+      const targetIdx = Math.min(digits.length, 5);
+      inputRefs.current[targetIdx]?.focus();
+    }
+  };
+
+  const { verifyUserSmsOtp, isPending } = useVerifyUserSmsOtp();
+
+  const onOtpSubmit = async () => {
+    const fullOtpString = otpValues.join("");
+
+    if (fullOtpString.length !== 6) {
+      setError("otp", {
+        type: "manual",
+        message: "Please enter the full 6-digit code",
+      });
+      return;
+    }
+
+    const payload = { otp: fullOtpString, aadhaar_no };
+
+    verifyUserSmsOtp(payload, {
+      onSuccess: () => {
+        setStep(3);
+        localStorage.setItem("step", 3);
+      },
+      onError: (err) => {
+        setServerError(err.response?.data?.message || "Invalid OTP entered.");
+      },
+      onSettled: () => reset(),
+    });
+  };
+
+  return (
+    <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-200">
+      <div className="card-body">
+        <h2 className="card-title text-xl font-bold justify-center">
+          Verify User
+        </h2>
+        <p className="text-sm text-base-content/70 text-center">
+          Enter the 6-digit code sent to registered mobile{" "}
+          <span className="font-semibold text-primary">{maskedPhone}</span>
+        </p>
+
+        {serverError && (
+          <div role="alert" className="alert alert-error text-sm py-2 mt-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="stroke-current shrink-0 h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>{serverError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onOtpSubmit)} className="mt-4 space-y-4">
+          <div className="flex justify-center gap-2">
+            {otpValues.map((digit, idx) => (
+              <input
+                key={idx}
+                ref={(el) => (inputRefs.current[idx] = el)}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleChange(idx, e)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
+                onPaste={handlePaste}
+                className={`input input-bordered w-12 h-14 text-center text-xl font-bold rounded-lg focus:input-primary ${
+                  errors.otp || serverError ? "input-error" : ""
+                }`}
+                autoFocus={idx === 0}
+              />
+            ))}
+          </div>
+
+          {errors.otp && (
+            <p className="text-error text-xs text-center font-medium">
+              {errors.otp.message}
+            </p>
+          )}
+
+          <div className="card-actions justify-between items-center pt-2">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setStep(2)}
+              disabled={isPending}
+            >
+              ← Back
+            </button>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isPending}
+            >
+              {isPending && (
+                <span className="loading loading-spinner loading-sm"></span>
+              )}
+              {isPending ? "Verifying..." : "Verify OTP"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
+
+const apiRegisterUser = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/user/register",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useRegisterUser = () => {
+  const { mutate: registerUser, isPending } = useMutation({
+    mutationFn: apiRegisterUser,
+  });
+  return { registerUser, isPending };
+};
+
+const UserRegistration = ({ setStep, user }) => {
+  const { registerUser, isPending } = useRegisterUser();
+  const navigate = useNavigate();
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+    reset,
+    getValues,
+  } = useForm();
+
+  const submitHandler = (data) => {
+    const payload = {
+      aadhaar_no: user.aadhaar_no,
+      mobile_no: user.mobile_no,
+      name: user.full_name,
+      dob: user.dob,
+      age: data.age,
+      address: data.address,
+      state: data.state,
+      email: data.email,
+      password: data.password,
+    };
+    registerUser(payload, {
+      onSuccess: () => {
+        reset();
+        setStep(1);
+        localStorage.removeItem("step");
+        navigate("/user/home", { replace: true });
+      },
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
+  };
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Detailed Address</span>
+            <input
+              type="text"
+              disabled={isPending}
+              {...register("address", {
+                required: "This field is required",
+                minLength: {
+                  value: 15,
+                  message: "Minimum of 15 characters is required",
+                },
+              })}
+            />
+          </label>
+          {errors?.address ? <p>{errors.address.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Home State</span>
+            <input
+              type="text"
+              disabled={isPending}
+              {...register("state", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.state ? <p>{errors.state.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Age</span>
+            <input
+              type="number"
+              disabled={isPending}
+              {...register("age", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.age ? <p>{errors.age.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Email</span>
+            <input
+              type="text"
+              disabled={isPending}
+              {...register("email", {
+                required: "This field is required",
+                pattern: {
+                  value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                  message: "Please enter a valid email address",
+                },
+              })}
+            />
+          </label>
+          {errors?.email ? <p>{errors.email.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Password</span>
+            <input
+              type="password"
+              disabled={isPending}
+              {...register("password", {
+                required: "This field is required!",
+                pattern: {
+                  value:
+                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                  message:
+                    "Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character",
+                },
+              })}
+            />
+          </label>
+          {errors?.password ? <p>{errors.password.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Confirm Password</span>
+            <input
+              type="password"
+              disabled={isPending}
+              {...register("confirmPassword", {
+                required: "This field is required!",
+                validate: (value) =>
+                  value === getValues("password") || "Passwords don't match",
+              })}
+            />
+          </label>
+          {errors?.confirmPassword ? (
+            <p>{errors.confirmPassword.message}</p>
+          ) : (
+            ""
+          )}
+        </div>
+        <div>
+          <button disabled={isPending} className="btn btn-primary uppercase">
+            Register
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export const UserRegister = () => {
+  const [step, setStep] = useState(1);
+  const [aadhaar_no, setAadhaar_no] = useState(null);
+  const [maskedPhone, setMaskedPhone] = useState(null);
+  const [user, setUser] = useState("");
+  return (
+    <div>
+      <h1>User Registration</h1>
+      {step === 1 ? (
+        <VerifyUserCredentials
+          setStep={setStep}
+          setMaskedPhone={setMaskedPhone}
+          setAadhaar_no={setAadhaar_no}
+          setUser={setUser}
+        />
+      ) : (
+        ""
+      )}
+      {step === 2 ? (
+        <UserSMSOtp maskedPhone={maskedPhone} aadhaar_no={aadhaar_no} />
+      ) : (
+        ""
+      )}
+      {step === 3 ? <UserRegistration setStep={setStep} user={user} /> : ""}
+    </div>
+  );
+};
+
+const apiLoginUser = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/user/login",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useLoginUser = () => {
+  const { mutate: loginUser, isPending } = useMutation({
+    mutationFn: apiLoginUser,
+  });
+  return { loginUser, isPending };
+};
+
 export const UserLogin = () => {
+  const { loginUser, isPending } = useLoginUser();
+  const navigate = useNavigate();
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+    reset,
+  } = useForm();
+
+  const submitHandler = (data) => {
+    loginUser(data, {
+      onSuccess: () => {
+        reset();
+        navigate("/user/home", { replace: true });
+      },
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
+  };
   return (
     <div>
       <h1>User Login</h1>
+      <div>
+        <form onSubmit={handleSubmit(submitHandler)}>
+          <div>
+            <label className="floating-label">
+              <span>Aadhaar Number</span>
+              <input
+                type="text"
+                disabled={isPending}
+                {...register("aadhaar_no", {
+                  required: "This field is required",
+                  minLength: {
+                    value: 12,
+                    message: "Aadhaar number must be exactly 12 characters",
+                  },
+                  maxLength: {
+                    value: 12,
+                    message: "Aadhaar number must be exactly 12 characters",
+                  },
+                })}
+              />
+            </label>
+            {errors?.aadhaar_no ? <p>{errors?.aadhaar_no?.message}</p> : ""}
+          </div>
+          <div>
+            <label className="floating-label">
+              <span>Password</span>
+              <input
+                type="password"
+                disabled={isPending}
+                {...register("password", {
+                  required: "This field is required",
+                  pattern: {
+                    value:
+                      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                    message:
+                      "Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character",
+                  },
+                })}
+              />
+            </label>
+            {errors?.password ? <p>{errors?.password?.message}</p> : ""}
+          </div>
+          <div>
+            <button disabled={isPending} className="btn btn-primary uppercase">
+              Login
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
