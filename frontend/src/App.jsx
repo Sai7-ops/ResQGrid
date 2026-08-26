@@ -121,6 +121,7 @@ const AgencySosInbox = () => {
     if (!socket) return;
 
     const handleNewSosAlert = (payload) => {
+      console.log("🚨🚨🚨 SOS RECEIVED BY FRONTEND:", payload);
       setSosAlerts((prevAlerts) => {
         const alreadyExists = prevAlerts.some(
           (item) => item.sos_id === payload.sos_id,

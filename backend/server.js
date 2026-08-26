@@ -74,6 +74,10 @@ io.on("connection", (socket) => {
   const { agency_id, agency_name, zone_id, primary_capabilities_tags } =
     socket.agency;
 
+  console.log("🔌 AGENCY SOCKET CONNECTED");
+  console.log("Agency ID:", agency_id);
+  console.log("Socket ID:", socket.id);
+  console.log("Room:", `agency_${agency_id}`);
   socket.join(`agency_${agency_id}`);
   socket.join(zone_id);
 
@@ -660,8 +664,8 @@ const triggerSos = catchAsync(async (req, res) => {
     });
 
   const io = req.app.get("io");
-  console.log(agencies);
   agencies.forEach((agency) => {
+    console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
     io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
       sos_id: sos_request.sos_id,
       disaster_type: sos_request.disaster_type,
