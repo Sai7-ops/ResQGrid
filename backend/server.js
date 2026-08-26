@@ -655,11 +655,9 @@ const triggerSos = catchAsync(async (req, res) => {
     sos_request.disaster_type,
   );
   if (agencies.length === 0)
-    return res
-      .status(404)
-      .json({
-        message: "SOS recorded but no agencies are currently available",
-      });
+    return res.status(404).json({
+      message: "SOS recorded but no agencies are currently available",
+    });
 
   const io = req.app.get("io");
   agencies.forEach((agency) => {
@@ -752,6 +750,13 @@ export const findNearestAgencies = async (
   return result.rows;
 };
 
+const logout = catchAsync(async (req, res) => {
+  res.clearCookie("token");
+  res.status(200).json({ message: "Logged out successfully" });
+});
+
+app.get("/api/agency/units", verifyJWT, getAgencyUnits);
+app.get("/api/agency/me", verifyJWT, getMyAgency);
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
 app.post("/api/agency/verifyDigiOtp", verifyDigiOtp);
@@ -759,14 +764,14 @@ app.post("/api/agency/verifyEmail", verifyEmail);
 app.post("/api/agency/verifyEmailOtp", verifyEmailOtp);
 app.post("/api/agency/register", registerAgency);
 app.post("/api/agency/login", loginAgency);
-app.get("/api/agency/me", verifyJWT, getMyAgency);
-app.get("/api/agency/units", verifyJWT, getAgencyUnits);
+app.post("api/agency/logout", verifyJWT, logout);
+app.get("/api/user/me", verifyUserJWT, getMe);
 app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
-app.get("/api/user/me", verifyUserJWT, getMe);
+app.post("api/user/logout", verifyUserJWT, logout);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);

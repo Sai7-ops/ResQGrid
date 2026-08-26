@@ -223,10 +223,42 @@ const AgencySosInbox = () => {
   );
 };
 
+const apiLogoutUser = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/user/logout",
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useLogoutUser = () => {
+  const { mutate: logoutUser, isPending } = useMutation({
+    mutationFn: apiLogoutUser,
+    onSuccess: () => toast.error("Logged out successfully"),
+    onError: () => toast.error("An error occured while logging out"),
+  });
+  return { logoutUser, isPending };
+};
 const UserLayout = () => {
+  const { logoutUser, isPending } = useLogoutUser();
+  const logoutHandler = () => {
+    logoutUser({});
+  };
   return (
     <>
-      <header>header</header>
+      <header>
+        header
+        <button
+          disabled={isPending}
+          onClick={logoutHandler}
+          className="btn btn-primary"
+        >
+          Logout
+        </button>
+      </header>
       <main>
         <Outlet />
       </main>
@@ -1050,7 +1082,31 @@ export const UserLogin = () => {
   );
 };
 
+const apiLogoutAgency = async (payload) => {
+  const response = await axios.post(
+    "https://resqgrid-x51v.onrender.com/api/agency/logout",
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useLogoutAgency = () => {
+  const { mutate: logoutAgency, isPending } = useMutation({
+    mutationFn: apiLogoutAgency,
+    onSuccess: () => toast.error("Logged out successfully"),
+    onError: () => toast.error("An error occured while logging out"),
+  });
+  return { logoutAgency, isPending };
+};
+
 const AgencyLayout = () => {
+  const { logoutAgency, isPending } = useLogoutAgency();
+  const logoutHandler = () => {
+    logoutAgency({});
+  };
   return (
     <SocketProvider>
       <header>
@@ -1058,6 +1114,9 @@ const AgencyLayout = () => {
         <NavLink to="/agency/dashboard">Dashboard</NavLink>
         <NavLink to="/agency/inbox">Inbox</NavLink>
         <NavLink to="/agency/units">Units</NavLink>
+        <button disabled={isPending} onClick={logoutHandler}>
+          Logout
+        </button>
       </header>
       <main>
         <Outlet />
