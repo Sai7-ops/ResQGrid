@@ -44,7 +44,6 @@ io.use(async (socket, next) => {
     const rawCookies = socket.handshake.headers.cookie;
     if (!rawCookies)
       return next(new Error("Authentication error: No cookies found"));
-    const parsedCookies = parse(rawCookies);
     const token = rawCookies
       .split(";")
       .map((cookie) => cookie.trim())
