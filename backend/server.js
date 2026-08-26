@@ -771,7 +771,7 @@ app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
-app.post("api/user/logout", verifyUserJWT, logout);
+app.post("/api/user/logout", verifyUserJWT, logout);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);
