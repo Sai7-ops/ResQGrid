@@ -771,7 +771,7 @@ app.post("/api/agency/verifyEmail", verifyEmail);
 app.post("/api/agency/verifyEmailOtp", verifyEmailOtp);
 app.post("/api/agency/register", registerAgency);
 app.post("/api/agency/login", loginAgency);
-app.post("api/agency/logout", verifyJWT, logout);
+app.post("/api/agency/logout", verifyJWT, logout);
 app.get("/api/user/me", verifyUserJWT, getMe);
 app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
