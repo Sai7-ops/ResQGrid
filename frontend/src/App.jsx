@@ -977,7 +977,7 @@ export const UserRegister = () => {
         ""
       )}
       {step === 2 ? (
-        <UserSMSOtp maskedPhone={maskedPhone} aadhaar_no={aadhaar_no} />
+        <UserSMSOtp maskedPhone={maskedPhone} aadhaar_no={aadhaar_no} setStep={setStep}/>
       ) : (
         ""
       )}
