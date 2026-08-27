@@ -710,7 +710,7 @@ const triggerSos = catchAsync(async (req, res) => {
     });
   });
 
-  await pool.query(query, [sosId, agencyIds, matchedCaps, distances]);
+  await pool.query(query, [sos_request.sos_id, agencyIds, matchedCaps, distances]);
 
   res
     .status(200)
