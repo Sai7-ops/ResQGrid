@@ -84,10 +84,12 @@ const UserInbox = () => {
 };
 
 const AgencySosInbox = () => {
-  const socket = useSocket();
-  const [sosAlerts, setSosAlerts] = useState([]);
+  const { socket, sosAlerts } = useSocket();
+
   const { agencyUnits, isPending } = useGetAgencyUnits();
+
   const [claimingUnitId, setClaimingUnitId] = useState(null);
+
   const queryClient = useQueryClient();
 
   const handleClaimSos = ({ unit_id, sos_id, unit_type }) => {
@@ -95,75 +97,35 @@ const AgencySosInbox = () => {
       toast.error("Socket is not connected!");
       return;
     }
-    setClaimingUnitId(claimingUnitId === unit_id);
+
+    setClaimingUnitId(unit_id);
 
     const payload = {
       sos_id,
       unit_type,
       unit_id,
     };
+
     socket.emit("CLAIM_SOS_CAPABILITY", payload, (response) => {
-      setClaimingUnitId(claimingUnitId === unit_id);
+      setClaimingUnitId(null);
+
       if (response?.success) {
         toast.success(
           `Successfully claimed SOS #${sos_id}! Unit ${unit_id} is dispatched.`,
-          queryClient.invalidateQueries({
-            queryKey: ["agencyUnits"],
-          }),
         );
+
+        queryClient.invalidateQueries({
+          queryKey: ["agencyUnits"],
+        });
       } else {
         toast.error(`Failed to claim: ${response?.message || "Unknown error"}`);
       }
     });
   };
 
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleNewSosAlert = (payload) => {
-      console.log("🚨🚨🚨 SOS RECEIVED BY FRONTEND:", payload);
-      setSosAlerts((prevAlerts) => {
-        const alreadyExists = prevAlerts.some(
-          (item) => item.sos_id === payload.sos_id,
-        );
-        if (alreadyExists) return prevAlerts;
-        return [payload, ...prevAlerts];
-      });
-
-      try {
-        const audio = new Audio("/alert.mp3");
-        audio.play().catch(() => {});
-      } catch (err) {
-        console.error("Audio playback error", err);
-      }
-    };
-
-    const handleCapabilityClaimed = ({ sos_id, claimed_unit_type }) => {
-      setSosAlerts((prevAlerts) => {
-        return prevAlerts.map((alert) => {
-          if (alert.sos_id !== sos_id) return alert;
-
-          const remainingCapabilities = alert.matched_capabilities.filter(
-            (tag) => tag !== claimed_unit_type,
-          );
-
-          return {
-            ...alert,
-            matched_capabilities: remainingCapabilities,
-          };
-        });
-      });
-    };
-    socket.on("NEW_SOS_ALERT", handleNewSosAlert);
-    socket.on("CAPABILITY_CLAIMED", handleCapabilityClaimed);
-
-    return () => {
-      socket.off("NEW_SOS_ALERT", handleNewSosAlert);
-      socket.off("CAPABILITY_CLAIMED", handleCapabilityClaimed);
-    };
-  }, [socket]);
-
-  if (isPending) return <h1>Loading...</h1>;
+  if (isPending) {
+    return <h1>Loading...</h1>;
+  }
 
   const availableUnits = agencyUnits.filter(
     (unit) => unit.status === "AVAILABLE",
