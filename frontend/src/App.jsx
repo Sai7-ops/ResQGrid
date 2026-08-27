@@ -122,7 +122,7 @@ const AgencySosInbox = () => {
     }
   }, [sos_alerts, setSosAlerts]);
 
-  const handleClaimSos = ({ unit_id, sos_id, unit_type }) => {
+  const handleClaimSos = ({ unit_id, sos_id, unit_type, agency_id }) => {
     if (!socket) {
       toast.error("Socket is not connected!");
       return;
@@ -134,6 +134,7 @@ const AgencySosInbox = () => {
       sos_id,
       unit_type,
       unit_id,
+      agency_id,
     };
 
     socket.emit("CLAIM_SOS_CAPABILITY", payload, (response) => {
