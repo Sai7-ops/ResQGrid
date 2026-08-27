@@ -683,20 +683,6 @@ const triggerSos = catchAsync(async (req, res) => {
 
   const io = req.app.get("io");
 
-  const agencyIds = agencies.map((a) => a.agency_id);
-  const matchedCaps = agencies.map((a) => a.matched_tags);
-  const distances = agencies.map((a) => a.distance_meters);
-
-  const query = `
-    INSERT INTO agency_sos_inbox (sos_id, agency_id, matched_capabilities, distance_meters)
-    SELECT 
-      $1,
-      UNNEST($2::varchar[]),
-      UNNEST($3::text[][]),
-      UNNEST($4::numeric[])
-    ON CONFLICT (agency_id, sos_id) DO NOTHING;
-  `;
-
   agencies.forEach((agency) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
     io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
@@ -710,7 +696,15 @@ const triggerSos = catchAsync(async (req, res) => {
     });
   });
 
-  await pool.query(query, [sos_request.sos_id, agencyIds, matchedCaps, distances]);
+  for (const agency of agencies) {
+    await pool.query(
+      `INSERT INTO agency_sos_inbox 
+         (sos_id, agency_id, matched_capabilities, distance_meters)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (agency_id, sos_id) DO NOTHING`,
+      [sos_request.sos_id, agency.agency_id, agency.matched_tags, agency.distance_meters],
+    );
+  }
 
   res
     .status(200)
