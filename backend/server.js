@@ -125,7 +125,7 @@ io.on("connection", (socket) => {
       const unit_name = result.rows[0].unit_name;
 
       await pool.query(
-        `UPDATE agency_units SET status = 'EN ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
+        `UPDATE agency_units SET status = 'EN_ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
         [unit_id],
       );
 
