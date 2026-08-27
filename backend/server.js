@@ -702,7 +702,12 @@ const triggerSos = catchAsync(async (req, res) => {
          (sos_id, agency_id, matched_capabilities, distance_meters)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (agency_id, sos_id) DO NOTHING`,
-      [sos_request.sos_id, agency.agency_id, agency.matched_tags, agency.distance_meters],
+      [
+        sos_request.sos_id,
+        agency.agency_id,
+        agency.matched_tags,
+        agency.distance_meters,
+      ],
     );
   }
 
@@ -809,9 +814,7 @@ const getSosAlerts = catchAsync(async (req, res) => {
     i.inserted_at,
     s.disaster_type,
     s.description,
-    s.location_address,
-    ST_AsGeoJSON(s.location)::json AS location,
-    s.created_at AS triggered_at,
+    ST_AsGeoJSON(s.triggered_location)::json AS location,
     ARRAY(
         SELECT tag 
         FROM UNNEST(i.matched_capabilities) AS tag
@@ -842,9 +845,32 @@ ORDER BY i.inserted_at DESC;
   return res.status(200).json(result.rows);
 });
 
+const getUnitActiveMission = catchAsync(async (req, res) => {
+  const { unit_id } = req.params;
+  const result = await pool.query(
+    `
+    select s.triggered_at, s.status as sos_status, ST_AsGeoJSON(s.triggered_location)::json AS sos_location, u.unit_id, s.sos_id,
+    s_d.assigned_at, s_d.updated_at, s_d.status as dispatch_status, u.unit_name, u.unit_type, u.equipped_assets, ST_AsGeoJSON(u.current_location)::json AS unit_location
+    from sos_dispatches s_d join sos_requests s on s_d.sos_id=s.sos_id join agency_units u on s_d.unit_id=u.unit_id
+    WHERE s_d.unit_id = $1
+      AND s_d.status NOT IN ('RESOLVED', 'CANCELLED')
+      AND s.status NOT IN ('resolved', 'cancelled')
+    ORDER BY s_d.assigned_at DESC
+    LIMIT 1;
+    `,
+    [unit_id],
+  );
+  return res.status(200).json(result.rows);
+});
+
 app.get("/api/agency/units", verifyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyJWT, getMyAgency);
 app.get("/api/agency/sosAlerts", verifyJWT, getSosAlerts);
+app.get(
+  "/api/agency/unit/:unit_id/activeMission",
+  verifyJWT,
+  getUnitActiveMission,
+);
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
 app.post("/api/agency/verifyDigiOtp", verifyDigiOtp);

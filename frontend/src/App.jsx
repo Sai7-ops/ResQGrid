@@ -7,6 +7,7 @@ import {
   Navigate,
   Outlet,
   NavLink,
+  useParams,
 } from "react-router-dom";
 import "./App.css";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -47,6 +48,10 @@ function App() {
               <Route path="inbox" element={<AgencyInbox />} />
               <Route path="sosInbox" element={<AgencySosInbox />} />
               <Route path="units" element={<AgencyUnits />} />
+              <Route
+                path="unit/:unit_id/activeMission"
+                element={<AgencyUnitActiveMission />}
+              />
             </Route>
           </Route>
           <Route element={<UserRouteProtector />}>
@@ -1170,6 +1175,8 @@ const useGetAgencyUnits = () => {
 
 const AgencyUnits = () => {
   const { agencyUnits, isPending } = useGetAgencyUnits();
+  const navigate = useNavigate();
+
   if (isPending) return <h1>Loading...</h1>;
   const formatAssetName = (name) => {
     return name
@@ -1200,6 +1207,20 @@ const AgencyUnits = () => {
             <p>{unit.unit_coverage_radius_km}</p>
             <p>{unit.unit_email}</p>
             <p>{unit.unit_contact_no}</p>
+            <div>
+              <button
+                onClick={() => navigate(`/agency/unit/:unit_id/activeMission`)}
+                className="btn btn-primary"
+              >
+                Track Active Mission
+              </button>
+              <button
+                onClick={() => navigate(`/agency/unit/:unit_id/trackRecords`)}
+                className="btn btn-accent"
+              >
+                View Track Records
+              </button>
+            </div>
           </div>
         );
       })}
@@ -1240,6 +1261,97 @@ const AgencyUnitsMap = () => {
         );
       })}
     </MapContainer>
+  );
+};
+
+const apigetUnitActiveMission = async (unit_id) => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/agency/unit/${unit_id}/activeMission`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetUnitActiveMission = () => {
+  const params = useParams();
+  const unit_id = params.unit_id;
+
+  const { data, isPending } = useQuery({
+    queryKey: ["activeMission", unit_id],
+    queryFn: () => apigetUnitActiveMission(unit_id),
+  });
+
+  return { data, isPending };
+};
+
+const AgencyUnitActiveMission = () => {
+  const { data, isPending } = useGetUnitActiveMission();
+  if (isPending) return <h1>Loading...</h1>;
+
+  if (!data || data.length === 0) return <h1>No active missions currently</h1>;
+
+  const activeMission = data[0];
+
+  const {
+    triggered_at,
+    sos_id,
+    sos_status,
+    sos_location,
+    assigned_at,
+    updated_at,
+    dispatch_status,
+    unit_name,
+    unit_type,
+    unit_id,
+    unit_location,
+  } = activeMission;
+
+  const [unit_longitude, unit_latitude] = unit_location.coordinates;
+  const [sos_longitude, sos_latitude] = sos_location.coordinates;
+
+  return (
+    <>
+      <div>
+        <p>Unit ID: {unit_id}</p>
+        <p>Unit Name: {unit_name}</p>
+        <p>Unit Type: {unit_type}</p>
+        <p>{sos_id}</p>
+        <p>SOS Triggered At: {triggered_at}</p>
+        <p>SOS Status: {sos_status}</p>
+        <p>Assigned At: {assigned_at}</p>
+        <p>Last Updated: {updated_at}</p>
+        <p>Dispatch Status: {dispatch_status}</p>
+      </div>
+      <div>
+        <MapContainer
+          center={[unit_latitude, unit_longitude]}
+          zoom={13}
+          style={{ height: "500px", width: "100%" }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <Marker key={unit_id} position={[unit_latitude, unit_longitude]}>
+            <Popup>
+              <strong>{unit_name}</strong>
+              <br />
+              Status: {dispatch_status}
+            </Popup>
+          </Marker>
+          <Marker key={sos_id} position={[sos_latitude, sos_longitude]}>
+            <Popup>
+              <strong>{sos_id}</strong>
+              <br />
+              Status: {sos_status}
+              <p>Triggered from this location at {triggered_at}</p>
+            </Popup>
+          </Marker>
+        </MapContainer>
+      </div>
+    </>
   );
 };
 
