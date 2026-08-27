@@ -848,7 +848,7 @@ ORDER BY i.inserted_at DESC;
 
 const getUnitActiveMission = catchAsync(async (req, res) => {
   const { unit_id } = req.params;
-
+  console.log(unit_id);
   const result = await pool.query(
     `
     SELECT 
