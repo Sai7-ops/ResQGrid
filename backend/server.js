@@ -848,19 +848,37 @@ ORDER BY i.inserted_at DESC;
 
 const getUnitActiveMission = catchAsync(async (req, res) => {
   const { unit_id } = req.params;
+
   const result = await pool.query(
     `
-    select s.triggered_at, s.status as sos_status, ST_AsGeoJSON(s.triggered_location)::json AS sos_location, u.unit_id, s.sos_id,
-    s_d.assigned_at, s_d.updated_at, s_d.status as dispatch_status, u.unit_name, u.unit_type, u.equipped_assets, ST_AsGeoJSON(u.current_location)::json AS unit_location
-    from sos_dispatches s_d join sos_requests s on s_d.sos_id=s.sos_id join agency_units u on s_d.unit_id=u.unit_id
+    SELECT 
+      s.sos_id,
+      s.user_id,
+      s.triggered_at, 
+      s.status AS sos_status, 
+      ST_AsGeoJSON(s.triggered_location)::json AS sos_location,
+      s_d.dispatch_id,
+      s_d.agency_id,
+      s_d.assigned_at, 
+      s_d.updated_at, 
+      s_d.status AS dispatch_status, 
+      u.unit_id,
+      u.unit_name, 
+      u.unit_type, 
+      u.equipped_assets, 
+      ST_AsGeoJSON(u.current_location)::json AS unit_location
+    FROM sos_dispatches s_d 
+    JOIN sos_requests s ON s_d.sos_id = s.sos_id 
+    JOIN agency_units u ON s_d.unit_id = u.unit_id
     WHERE s_d.unit_id = $1
-      AND s_d.status NOT IN ('RESOLVED', 'CANCELLED')
-      AND s.status NOT IN ('resolved', 'cancelled')
+      AND s_d.status IN ('ASSIGNED', 'EN ROUTE', 'ON SCENE')
+      AND s.status IN ('pending', 'acknowledged', 'dispatched')
     ORDER BY s_d.assigned_at DESC
     LIMIT 1;
     `,
     [unit_id],
   );
+
   return res.status(200).json(result.rows);
 });
 
