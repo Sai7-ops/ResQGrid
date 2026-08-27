@@ -184,7 +184,7 @@ const AgencySosInbox = () => {
                   <p>{tag}</p>
                 ))}
               </div>
-              {alert.matched_capabilities.map((tag) => {
+              {(alert.matched_capabilities || []).map((tag) => {
                 const matching_units = availableUnits.filter(
                   (unit) => unit.unit_type === tag,
                 );
