@@ -190,6 +190,9 @@ const AgencySosInbox = () => {
                   <p>{tag}</p>
                 ))}
               </div>
+              <div>
+                <h1>STATUS: {alert.status.toUpperCase()}</h1>
+              </div>
               {(alert.matched_capabilities || []).map((tag) => {
                 const matching_units = availableUnits.filter(
                   (unit) => unit.unit_type === tag,
