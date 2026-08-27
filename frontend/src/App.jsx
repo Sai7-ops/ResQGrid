@@ -1212,13 +1212,13 @@ const AgencyUnits = () => {
             <p>{unit.unit_contact_no}</p>
             <div>
               <button
-                onClick={() => navigate(`/agency/unit/:unit_id/activeMission`)}
+                onClick={() => navigate(`/agency/unit/${unit.unit_id}/activeMission`)}
                 className="btn btn-primary"
               >
                 Track Active Mission
               </button>
               <button
-                onClick={() => navigate(`/agency/unit/:unit_id/trackRecords`)}
+                onClick={() => navigate(`/agency/unit/${unit.unit_id}/trackRecords`)}
                 className="btn btn-accent"
               >
                 View Track Records
