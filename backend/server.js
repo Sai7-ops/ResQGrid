@@ -98,7 +98,7 @@ io.on("connection", (socket) => {
   }
 
   socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
-    const { sos_id, unit_type, unit_id } = payload;
+    const { sos_id, unit_type, unit_id, agency_id } = payload;
     try {
       const insertDispatch = await pool.query(
         `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
@@ -106,6 +106,15 @@ io.on("connection", (socket) => {
            ON CONFLICT (sos_id, unit_type) DO NOTHING
            RETURNING *`,
         [sos_id, agency_id, unit_type, unit_id],
+      );
+
+      await pool.query(
+        `
+        update sos_requests
+        set status='dispatched'
+        where sos_id=$1 AND status NOT IN ('resolved', 'cancelled')
+        `,
+        [sos_id],
       );
 
       if (insertDispatch.rowCount === 0) {
@@ -673,6 +682,21 @@ const triggerSos = catchAsync(async (req, res) => {
     });
 
   const io = req.app.get("io");
+
+  const agencyIds = agencies.map((a) => a.agency_id);
+  const matchedCaps = agencies.map((a) => a.matched_tags);
+  const distances = agencies.map((a) => a.distance_meters);
+
+  const query = `
+    INSERT INTO agency_sos_inbox (sos_id, agency_id, matched_capabilities, distance_meters)
+    SELECT 
+      $1,
+      UNNEST($2::varchar[]),
+      UNNEST($3::text[][]),
+      UNNEST($4::numeric[])
+    ON CONFLICT (agency_id, sos_id) DO NOTHING;
+  `;
+
   agencies.forEach((agency) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
     io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
@@ -685,6 +709,9 @@ const triggerSos = catchAsync(async (req, res) => {
       distance_meters: agency.distance_meters,
     });
   });
+
+  await pool.query(query, [sosId, agencyIds, matchedCaps, distances]);
+
   res
     .status(200)
     .json({ message: "Agencies have been notified. Will be arriving shortly" });
@@ -776,8 +803,54 @@ const logout = catchAsync(async (req, res) => {
   });
 });
 
+const getSosAlerts = catchAsync(async (req, res) => {
+  const agency_id = req.agency.agency_id;
+
+  const result = await pool.query(
+    `
+    SELECT 
+    i.inbox_id,
+    i.sos_id,
+    i.distance_meters,
+    i.inserted_at,
+    s.disaster_type,
+    s.description,
+    s.location_address,
+    ST_AsGeoJSON(s.location)::json AS location,
+    s.created_at AS triggered_at,
+    ARRAY(
+        SELECT tag 
+        FROM UNNEST(i.matched_capabilities) AS tag
+        WHERE tag NOT IN (
+            SELECT unit_type 
+            FROM sos_dispatches 
+            WHERE sos_id = i.sos_id
+        )
+    ) AS matched_capabilities
+FROM agency_sos_inbox i
+JOIN sos_requests s ON i.sos_id = s.sos_id
+WHERE i.agency_id = $1
+  AND s.status NOT IN ('resolved', 'cancelled')
+  AND EXISTS (
+      SELECT 1 
+      FROM UNNEST(i.matched_capabilities) AS tag
+      WHERE tag NOT IN (
+          SELECT unit_type 
+          FROM sos_dispatches 
+          WHERE sos_id = i.sos_id
+      )
+  )
+ORDER BY i.inserted_at DESC;
+    `,
+    [agency_id],
+  );
+
+  return res.status(200).json(result.rows);
+});
+
 app.get("/api/agency/units", verifyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyJWT, getMyAgency);
+app.get("/api/agency/sosAlerts", getSosAlerts);
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
 app.post("/api/agency/verifyDigiOtp", verifyDigiOtp);

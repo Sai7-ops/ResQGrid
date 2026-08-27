@@ -83,14 +83,44 @@ const UserInbox = () => {
   return <h1>User Inbox</h1>;
 };
 
+const apiGetSosAlerts = async () => {
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/agency/sosAlerts",
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useSosAlerts = () => {
+  const { data, isPending: fetching } = useQuery({
+    queryKey: ["sos_alerts"],
+    queryFn: apiGetSosAlerts,
+  });
+  return { sos_alerts: data, fetching };
+};
+
 const AgencySosInbox = () => {
-  const { socket, sosAlerts } = useSocket();
+  const { socket, sosAlerts, setSosAlerts } = useSocket();
+  const { sos_alerts, fetching } = useSosAlerts();
 
   const { agencyUnits, isPending } = useGetAgencyUnits();
 
   const [claimingUnitId, setClaimingUnitId] = useState(null);
 
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (Array.isArray(sos_alerts)) {
+      setSosAlerts((prevAlerts) => {
+        const map = new Map();
+        sos_alerts.forEach((alert) => map.set(alert.sos_id, alert));
+        (prevAlerts || []).forEach((alert) => map.set(alert.sos_id, alert));
+        return Array.from(map.values());
+      });
+    }
+  }, [sos_alerts, setSosAlerts]);
 
   const handleClaimSos = ({ unit_id, sos_id, unit_type }) => {
     if (!socket) {
@@ -117,13 +147,16 @@ const AgencySosInbox = () => {
         queryClient.invalidateQueries({
           queryKey: ["agencyUnits"],
         });
+        queryClient.invalidateQueries({
+          queryKey: ["sos_alerts"],
+        });
       } else {
         toast.error(`Failed to claim: ${response?.message || "Unknown error"}`);
       }
     });
   };
 
-  if (isPending) {
+  if (isPending || fetching) {
     return <h1>Loading...</h1>;
   }
 
@@ -168,6 +201,7 @@ const AgencySosInbox = () => {
                               unit_id: unit.unit_id,
                               sos_id: alert.sos_id,
                               unit_type: unit.unit_type,
+                              agency_id: unit.agency_id,
                             })
                           }
                         >
