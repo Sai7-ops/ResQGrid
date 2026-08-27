@@ -844,7 +844,7 @@ ORDER BY i.inserted_at DESC;
 
 app.get("/api/agency/units", verifyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyJWT, getMyAgency);
-app.get("/api/agency/sosAlerts", getSosAlerts);
+app.get("/api/agency/sosAlerts", verifyJWT, getSosAlerts);
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
 app.post("/api/agency/verifyDigiOtp", verifyDigiOtp);
