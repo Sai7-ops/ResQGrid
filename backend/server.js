@@ -687,6 +687,7 @@ const triggerSos = catchAsync(async (req, res) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
     io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
       sos_id: sos_request.sos_id,
+      status: sos_request.status,
       disaster_type: sos_request.disaster_type,
       description: sos_request.description,
       location: [longitude, latitude],
