@@ -992,6 +992,19 @@ const getDispatchData = catchAsync(async (req, res) => {
   return res.status(200).json(result.rows);
 });
 
+const getUserActiveSos = catchAsync(async (req, res) => {
+  const { user_id } = req.params;
+  const result = await pool.query(
+    `
+    select * from sos_requests
+    where user_id=$1 and status in ('pending', 'acknowledged', 'dispatched')
+    `,
+    [user_id],
+  );
+  if (result.rowCount === 0) return res.status(200).json({});
+  return res.status(200).json(result.rows[0]);
+});
+
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyAgencyJWT, getMyAgency);
 app.get("/api/agency/sosAlerts", verifyAgencyJWT, getSosAlerts);
@@ -1011,6 +1024,7 @@ app.post("/api/agency/logout", verifyAgencyJWT, logoutAgency);
 app.get("/api/user/me", verifyUserJWT, getMe);
 app.get("/api/user/sosAlert/:sos_id", verifyUserJWT, getSosAlert);
 app.get("/api/user/dispatchData/:sos_id", verifyUserJWT, getDispatchData);
+app.get("/api/user/:user_id/activeSos", getUserActiveSos);
 app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
