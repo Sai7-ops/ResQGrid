@@ -172,18 +172,11 @@ const useGetDispatchData = (sosId) => {
 };
 
 const UserSOSInbox = () => {
-  const { coordinates, loading, error, fetchLocation } = useGeolocation();
-  const [userLocation, setUserLocation] = useState({
-    latitude: null,
-    longitude: null,
-  });
+  const { coordinates, fetchLocation } = useGeolocation();
 
   useEffect(() => {
     fetchLocation();
-    if (!loading || error) {
-      setUserLocation(coordinates);
-    }
-  }, [coordinates, loading, error, fetchLocation]);
+  }, [fetchLocation]);
 
   const {
     userSocket,
@@ -235,41 +228,45 @@ const UserSOSInbox = () => {
         })}
       </div>
       <div>
-        <MapContainer
-          center={[userLocation.latitude, userLocation.longitude]}
-          zoom={13}
-          style={{ height: "500px", width: "100%" }}
-        >
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          {dispatchData.map((dispatch) => {
-            const [longitude, latitude] = dispatch.unit_location.coordinates;
-            return (
-              <Marker
-                key={dispatch.dispatch_id}
-                position={[latitude, longitude]}
-              >
-                <Popup>
-                  <strong>{dispatch.unit_type}</strong>
-                  <br />
-                  Status: {dispatch.status}
-                  <br />
-                  Unit Name: {dispatch.unit_name}
-                </Popup>
-              </Marker>
-            );
-          })}
+        {coordinates.latitude !== null && coordinates.longitude !== null ? (
+          <MapContainer
+            center={[coordinates.latitude, coordinates.longitude]}
+            zoom={13}
+            style={{ height: "500px", width: "100%" }}
+          >
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {dispatchData.map((dispatch) => {
+              const [longitude, latitude] = dispatch.unit_location.coordinates;
+              return (
+                <Marker
+                  key={dispatch.dispatch_id}
+                  position={[latitude, longitude]}
+                >
+                  <Popup>
+                    <strong>{dispatch.unit_type}</strong>
+                    <br />
+                    Status: {dispatch.status}
+                    <br />
+                    Unit Name: {dispatch.unit_name}
+                  </Popup>
+                </Marker>
+              );
+            })}
 
-          <Marker position={[userLocation.latitude, userLocation.longitude]}>
-            <Popup>
-              <strong>Your Location</strong>
-              <br />
-              <p>SOS ID: {alertStatus.sos_id}</p>
-            </Popup>
-          </Marker>
-        </MapContainer>
+            <Marker position={[userLocation.latitude, userLocation.longitude]}>
+              <Popup>
+                <strong>Your Location</strong>
+                <br />
+                <p>SOS ID: {alertStatus.sos_id}</p>
+              </Popup>
+            </Marker>
+          </MapContainer>
+        ) : (
+          ""
+        )}
       </div>
     </div>
   );
@@ -567,7 +564,7 @@ const UserSOSForm = () => {
   }, [coordinates, setValue]);
 
   if (fetching) return <h1>Loading...</h1>;
-  if (alert_status?.length > 0){
+  if (alert_status?.length > 0) {
     return <h1>You already have an active SOS triggered</h1>;
   }
 
