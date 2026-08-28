@@ -1010,7 +1010,7 @@ app.post("/api/agency/register", registerAgency);
 app.post("/api/agency/login", loginAgency);
 app.post("/api/agency/logout", verifyAgencyJWT, logoutAgency);
 app.get("/api/user/me", verifyUserJWT, getMe);
-app.get("/api/user/:user_id/sosAlert", verifyUserJWT, getSosAlert);
+app.get("/api/user/:user_id/activeSos", verifyUserJWT, getSosAlert);
 app.get("/api/user/dispatchData/:sos_id", verifyUserJWT, getDispatchData);
 app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
