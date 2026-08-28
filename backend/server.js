@@ -214,7 +214,7 @@ io.on("connection", (socket) => {
           unit_type,
           unit_name,
           unit_id,
-          current_location: unit_location,
+          unit_location,
           status: dispatchData.status,
           assigned_at: dispatchData.assigned_at,
         });
