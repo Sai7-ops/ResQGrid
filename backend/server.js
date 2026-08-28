@@ -149,7 +149,7 @@ io.on("connection", (socket) => {
       } = payload;
       try {
         const dispatch = await pool.query(
-          `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status, current_location)
+          `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
            VALUES ($1, $2, $3, $4, 'EN ROUTE')
            ON CONFLICT (sos_id, unit_type) DO NOTHING
            RETURNING *`,
