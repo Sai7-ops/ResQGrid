@@ -256,7 +256,7 @@ const UserSOSInbox = () => {
               );
             })}
 
-            <Marker position={[userLocation.latitude, userLocation.longitude]}>
+            <Marker position={[coordinates.latitude, coordinates.longitude]}>
               <Popup>
                 <strong>Your Location</strong>
                 <br />
