@@ -513,7 +513,7 @@ const useTriggerSos = () => {
     mutationFn: apiTriggerSos,
     onSuccess: (data) => {
       queryClient.setQueryData(["activeSos"], {
-        sos_id: data.sos_id,
+        ...data,
         active: true,
       });
     },
@@ -525,7 +525,7 @@ const UserSOSForm = () => {
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
   const { triggerSos, isPending } = useTriggerSos();
   const queryClient = useQueryClient();
-  const { active = false } = queryClient.getQueryData(["activeSos"]) || {};
+  const {sosId, isPending: fetching} = useGetAlertStatus();
 
   const {
     register,
@@ -561,7 +561,9 @@ const UserSOSForm = () => {
     }
   }, [coordinates, setValue]);
 
-  if (active) return <h1>You already have an active sos triggered</h1>;
+  if(fetching) return <h1>Loading...</h1>
+
+  if (sosId) return <h1>You already have an active sos triggered</h1>;
 
   return (
     <div>
