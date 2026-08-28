@@ -481,7 +481,15 @@ const UserHome = () => {
   return (
     <div>
       <p>Welcome {user.name}</p>
-      <NavLink to="/user/sosForm">Trigger SOS</NavLink>
+      <p>
+        <NavLink to="/user/sosForm">Trigger SOS</NavLink>
+      </p>
+      <p>
+        <NavLink to="/user/sosInbox">User SOS Inbox</NavLink>
+      </p>
+      <p>
+        <NavLink to="/user/inbox">User Inbox</NavLink>
+      </p>
     </div>
   );
 };
@@ -511,14 +519,30 @@ const useTriggerSos = () => {
   return { triggerSos, isPending };
 };
 
-const UserSOSForm = () => {
+const apiCheckActiveTrigger = async (user_id) => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/user/${user_id}/checkActiveSos`,
+    {
+      withCredentials: true,
+    },
+  );
+
+  return response.data.activeSos;
+};
+
+const useCheckActiveTrigger = () => {
   const { user } = useUserAuth();
+  const user_id = user.user_id;
+  const { data: activeSos, isPending } = useQuery({
+    queryKey: ["activeTrigger", user_id],
+    queryFn: () => apiCheckActiveTrigger(user_id),
+  });
+  return { activeSos, isPending };
+};
+
+const UserSOSForm = () => {
+  const { activeSos, isPending: fetching } = useCheckActiveTrigger();
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
-  const queryClient = useQueryClient();
-  const activeTrigger = queryClient.getQueryData([
-    "activeTrigger",
-    user?.user_id,
-  ]);
   const { triggerSos, isPending } = useTriggerSos();
   const {
     register,
@@ -553,7 +577,9 @@ const UserSOSForm = () => {
     }
   }, [coordinates, setValue]);
 
-  if (activeTrigger) return <h1>You already have an active sos triggered</h1>;
+  if (fetching) return <h1>Loading...</h1>;
+
+  if (activeSos) return <h1>You already have an active sos triggered</h1>;
 
   return (
     <div>
