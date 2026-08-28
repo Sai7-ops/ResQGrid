@@ -166,7 +166,7 @@ io.on("connection", (socket) => {
             message: "SOS not found or already resolved/cancelled.",
           });
         }
-        
+
         const user_id = sos_request.rows[0].user_id;
 
         if (dispatch.rowCount === 0) {
@@ -182,12 +182,12 @@ io.on("connection", (socket) => {
         const dispatchData = dispatch.rows[0];
 
         const result = await pool.query(
-          `SELECT * from agency_units where unit_id=$1`,
+          `SELECT *, ST_AsGeoJSON(current_location)::json AS location from agency_units where unit_id=$1`,
           [unit_id],
         );
         const unit = result.rows[0];
         const unit_name = unit.unit_name;
-        const unit_location = unit.current_location;
+        const unit_location = unit.location;
 
         await pool.query(
           `UPDATE agency_units SET status = 'EN_ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
