@@ -12,7 +12,14 @@ import {
 import "./App.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { SocketProvider, useSocket } from "../contexts/SocketContext";
+import {
+  AgencySocketProvider,
+  useAgencySocket,
+} from "../contexts/AgencySocketContext";
+import {
+  UserSocketProvider,
+  useUserSocket,
+} from "../contexts/UserSocketContext";
 import {
   useMutation,
   QueryClient,
@@ -80,12 +87,203 @@ export const Home = () => {
   );
 };
 
+const useGeolocation = (options = {}) => {
+  const [coordinates, setCoordinates] = useState({
+    latitude: null,
+    longitude: null,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      return setError("Geolocation is not supported by the browser.");
+    }
+    setLoading(true);
+    setError(null);
+
+    const geoOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+      ...options,
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoordinates({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLoading(false);
+      },
+      (err) => {
+        setError(err.message || "Failed to retrieve location");
+        setLoading(false);
+      },
+      geoOptions,
+    );
+  }, [options]);
+
+  return { coordinates, loading, error, fetchLocation };
+};
+
+const apiGetAlertStatus = async (sos_id) => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/user/sosAlert/${sos_id}`,
+    {
+      withCredentials: true,
+    },
+  );
+
+  return response.data;
+};
+
+const useGetAlertStatus = () => {
+  const params = useParams();
+  const sos_id = params.sos_id;
+  const { data: alert_status, isPending } = useQuery({
+    queryKey: ["sosAlert", sos_id],
+    queryFn: apiGetAlertStatus,
+  });
+
+  return { alert_status, isPending };
+};
+
+const apiGetDispatchData = async (sos_id) => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/user/dispatchData/${sos_id}`,
+    {
+      withCredentials: true,
+    },
+  );
+
+  return response.data;
+};
+
+const useGetDispatchData = () => {
+  const params = useParams();
+  const sos_id = params.sos_id;
+  const { data: dispatch_data, isPending } = useQuery({
+    queryKey: ["dispatchData", sos_id],
+    queryFn: apiGetDispatchData,
+  });
+
+  return { dispatch_data, isPending };
+};
+
 const UserSOSInbox = () => {
-  return <h1>User SOS Inbox</h1>;
+  const { coordinates, loading, error, fetchLocation } = useGeolocation();
+  const [userLocation, setUserLocation] = useState({
+    latitude: null,
+    longitude: null,
+  });
+
+  useEffect(() => {
+    fetchLocation();
+    if (!loading || error) {
+      setUserLocation(coordinates);
+    }
+  }, [coordinates, loading, error, fetchLocation]);
+
+  const {
+    userSocket,
+    alertStatus,
+    dispatchData,
+    setAlertStatus,
+    setDispatchData,
+  } = useUserSocket();
+
+  const { alert_status, isPending } = useGetAlertStatus();
+  const { dispatch_data, isPending: fetching } = useGetDispatchData();
+
+  useEffect(() => {
+    if (!isPending && alert_status.length > 0) {
+      setAlertStatus(alert_status[0]);
+    }
+  }, [alert_status, setAlertStatus, isPending]);
+
+  useEffect(() => {
+    if (!fetching) setDispatchData(dispatch_data);
+  }, [dispatch_data, setDispatchData, fetching]);
+
+  if (isPending || fetching) return <h1>Loading...</h1>;
+
+  if (alert_status.length === 0)
+    return <h1>No Active SOS triggered at the moment</h1>;
+
+  return (
+    <div>
+      <div>
+        <h3>SOS ID : {alertStatus.sos_id}</h3>
+        <p>Triggered At: {alertStatus.triggered_at}</p>
+        <h3>Status: {alertStatus.status}</h3>
+        <p>Disaster Type: {alertStatus.disaster_type}</p>
+        <p>Provided Description: {alertStatus.description}</p>
+      </div>
+      <div>
+        {dispatchData.map((dispatch) => {
+          return (
+            <div>
+              <h3>Dispatch Id: {dispatch.dispatch_id}</h3>
+              <p>Agency Name: {dispatch.agency_name}</p>
+              <p>Unit Name: {dispatch.unit_name}</p>
+              <p>Unit Type: {dispatch.unit_type}</p>
+              <h3>Status: {dispatch.status}</h3>
+              <p>Assigned at: {dispatch.assigned_at}</p>
+            </div>
+          );
+        })}
+      </div>
+      <div>
+        <MapContainer
+          center={[userLocation.latitude, userLocation.longitude]}
+          zoom={13}
+          style={{ height: "500px", width: "100%" }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {dispatchData.map((dispatch) => {
+            const [longitude, latitude] = dispatch.current_location.coordinates;
+            return (
+              <Marker
+                key={dispatch.dispatch_id}
+                position={[latitude, longitude]}
+              >
+                <Popup>
+                  <strong>{dispatch.unit_type}</strong>
+                  <br />
+                  Status: {dispatch.status}
+                  <br />
+                  Unit Name: {dispatch.unit_name}
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          <Marker position={[userLocation.latitude, userLocation.longitude]}>
+            <Popup>
+              <strong>Your Location</strong>
+              <br />
+              <p>SOS ID: {alertStatus.sos_id}</p>
+            </Popup>
+          </Marker>
+        </MapContainer>
+      </div>
+    </div>
+  );
 };
 
 const UserInbox = () => {
-  return <h1>User Inbox</h1>;
+  return (
+    <div>
+      <div>
+        <h1>Inbox</h1>
+      </div>
+    </div>
+  );
 };
 
 const apiGetSosAlerts = async () => {
@@ -107,7 +305,7 @@ const useSosAlerts = () => {
 };
 
 const AgencySosInbox = () => {
-  const { socket, sosAlerts, setSosAlerts } = useSocket();
+  const { agencySocket, sosAlerts, setSosAlerts } = useAgencySocket();
   const { sos_alerts, fetching } = useSosAlerts();
 
   const { agencyUnits, isPending } = useGetAgencyUnits();
@@ -128,7 +326,7 @@ const AgencySosInbox = () => {
   }, [sos_alerts, setSosAlerts]);
 
   const handleClaimSos = ({ unit_id, sos_id, unit_type, agency_id }) => {
-    if (!socket) {
+    if (!agencySocket) {
       toast.error("Socket is not connected!");
       return;
     }
@@ -142,7 +340,7 @@ const AgencySosInbox = () => {
       agency_id,
     };
 
-    socket.emit("CLAIM_SOS_CAPABILITY", payload, (response) => {
+    agencySocket.emit("CLAIM_SOS_CAPABILITY", payload, (response) => {
       setClaimingUnitId(null);
 
       if (response?.success) {
@@ -258,7 +456,7 @@ const UserLayout = () => {
     logoutUser();
   };
   return (
-    <>
+    <UserSocketProvider>
       <header>
         header
         <button
@@ -273,7 +471,7 @@ const UserLayout = () => {
         <Outlet />
       </main>
       <footer>footer</footer>
-    </>
+    </UserSocketProvider>
   );
 };
 
@@ -303,14 +501,24 @@ const apiTriggerSos = async (payload) => {
 };
 
 const useTriggerSos = () => {
+  const queryClient = useQueryClient();
   const { mutate: triggerSos, isPending } = useMutation({
     mutationFn: apiTriggerSos,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["activeTrigger", data.user_id], true);
+    },
   });
   return { triggerSos, isPending };
 };
 
 const UserSOSForm = () => {
+  const { user } = useUserAuth();
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
+  const queryClient = useQueryClient();
+  const activeTrigger = queryClient.getQueryData([
+    "activeTrigger",
+    user?.user_id,
+  ]);
   const { triggerSos, isPending } = useTriggerSos();
   const {
     register,
@@ -344,6 +552,9 @@ const UserSOSForm = () => {
       setValue("longitude", coordinates.longitude);
     }
   }, [coordinates, setValue]);
+
+  if (activeTrigger) return <h1>You already have an active sos triggered</h1>;
+
   return (
     <div>
       <form onSubmit={handleSubmit(submitHandler)}>
@@ -1126,7 +1337,7 @@ const AgencyLayout = () => {
     logoutAgency();
   };
   return (
-    <SocketProvider>
+    <AgencySocketProvider>
       <header>
         <NavLink to="/agency/home">Home</NavLink>
         <NavLink to="/agency/dashboard">Dashboard</NavLink>
@@ -1141,7 +1352,7 @@ const AgencyLayout = () => {
         <Outlet />
       </main>
       <footer>footer</footer>
-    </SocketProvider>
+    </AgencySocketProvider>
   );
 };
 
@@ -1212,13 +1423,17 @@ const AgencyUnits = () => {
             <p>{unit.unit_contact_no}</p>
             <div>
               <button
-                onClick={() => navigate(`/agency/unit/${unit.unit_id}/activeMission`)}
+                onClick={() =>
+                  navigate(`/agency/unit/${unit.unit_id}/activeMission`)
+                }
                 className="btn btn-primary"
               >
                 Track Active Mission
               </button>
               <button
-                onClick={() => navigate(`/agency/unit/${unit.unit_id}/trackRecords`)}
+                onClick={() =>
+                  navigate(`/agency/unit/${unit.unit_id}/trackRecords`)
+                }
                 className="btn btn-accent"
               >
                 View Track Records
@@ -1356,47 +1571,6 @@ const AgencyUnitActiveMission = () => {
       </div>
     </>
   );
-};
-
-const useGeolocation = (options = {}) => {
-  const [coordinates, setCoordinates] = useState({
-    latitude: null,
-    longitude: null,
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const fetchLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      return setError("Geolocation is not supported by the browser.");
-    }
-    setLoading(true);
-    setError(null);
-
-    const geoOptions = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-      ...options,
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCoordinates({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        setLoading(false);
-      },
-      (err) => {
-        setError(err.message || "Failed to retrieve location");
-        setLoading(false);
-      },
-      geoOptions,
-    );
-  }, [options]);
-
-  return { coordinates, loading, error, fetchLocation };
 };
 
 const apiVerifyAgency = async (payload) => {

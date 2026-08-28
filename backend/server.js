@@ -11,6 +11,7 @@ import { addEmailJob } from "./queues/emailQueue.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import "./queues/emailQueue.js";
+import { success } from "zod";
 
 dotenv.config();
 
@@ -44,31 +45,60 @@ io.use(async (socket, next) => {
     const rawCookies = socket.handshake.headers.cookie;
     if (!rawCookies)
       return next(new Error("Authentication error: No cookies found"));
-    const token = rawCookies
-      .split(";")
-      .map((cookie) => cookie.trim())
-      .find((cookie) => cookie.startsWith("my_jwt_token="))
+
+    const cookies = rawCookies.split(";").map((cookie) => cookie.trim());
+
+    const userToken = cookies
+      .find((cookie) => cookie.startsWith("user_jwt_token="))
       ?.split("=")
       .slice(1)
       .join("=");
 
-    if (!token)
-      return next(new Error("Authentication error: No token provided"));
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const agencyToken = cookies
+      .find((cookie) => cookie.startsWith("agency_jwt_token="))
+      ?.split("=")
+      .slice(1)
+      .join("=");
 
-    const result = await pool.query(
-      `SELECT agency_id, agency_name, zone_id, primary_capabilities_tags,
+    if (!agencyToken || !userToken)
+      return next(new Error("Authentication error: No token provided"));
+
+    if (agencyToken) {
+      const decoded = jwt.verify(agencyToken, JWT_SECRET);
+
+      const result = await pool.query(
+        `SELECT agency_id, agency_name, zone_id, primary_capabilities_tags,
               ST_AsGeoJSON(hq_coordinates)::json AS hq_location
        FROM agencies WHERE agency_id = $1`,
-      [decoded.agency_id],
-    );
+        [decoded.agency_id],
+      );
 
-    if (result.rowCount === 0) {
-      return next(new Error("Authentication error: Agency not found"));
+      if (result.rowCount === 0) {
+        return next(new Error("Authentication error: Agency not found"));
+      }
+
+      socket.agency = result.rows[0];
+      socket.type = "agency";
+      return next();
     }
 
-    socket.agency = result.rows[0];
-    return next();
+    if (userToken) {
+      const decoded = jwt.verify(userToken, JWT_SECRET);
+      const result = await pool.query(
+        `
+        select user_id, mobile_no, dob, age, name, email, zone_id
+        from agencies where user_id = $1
+        `,
+        [decoded.user_id],
+      );
+      if (result.rowCount === 0) {
+        return next(new Error("Authentication error: User not found"));
+      }
+
+      socket.user = result.rows[0];
+      socket.type = "user";
+      return next();
+    }
   } catch (err) {
     console.error("🔥 SOCKET AUTH ERROR:", err.message);
     console.error(err);
@@ -79,91 +109,129 @@ io.use(async (socket, next) => {
 io.on("connection", (socket) => {
   console.log("🔥🔥🔥 CONNECTION HANDLER REACHED");
   console.log("Socket ID:", socket.id);
-  console.log("Socket agency:", socket.agency);
-  const { agency_id, agency_name, zone_id, primary_capabilities_tags } =
-    socket.agency;
 
-  console.log("🔌 AGENCY SOCKET CONNECTED");
-  console.log("Agency ID:", agency_id);
-  console.log("Socket ID:", socket.id);
-  console.log("Room:", `agency_${agency_id}`);
-  socket.join(`agency_${agency_id}`);
-  socket.join(zone_id);
+  if (socket.type === "agency") {
+    const { agency_id, agency_name, zone_id, primary_capabilities_tags } =
+      socket.agency;
 
-  if (Array.isArray(primary_capabilities_tags)) {
-    primary_capabilities_tags.forEach((tag) => {
-      const sanitizedTag = tag.trim().replace(/\s+/g, "_").toUpperCase();
-      socket.join(`${zone_id}_${sanitizedTag}`);
-    });
-  }
+    socket.join(`agency_${agency_id}`);
+    socket.join(`agency_${zone_id}`);
 
-  socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
-    const { sos_id, unit_type, unit_id, agency_id } = payload;
-    try {
-      const insertDispatch = await pool.query(
-        `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
-           VALUES ($1, $2, $3, $4, 'EN ROUTE')
-           ON CONFLICT (sos_id, unit_type) DO NOTHING
-           RETURNING *`,
-        [sos_id, agency_id, unit_type, unit_id],
-      );
+    if (Array.isArray(primary_capabilities_tags)) {
+      primary_capabilities_tags.forEach((tag) => {
+        const sanitizedTag = tag.trim().replace(/\s+/g, "_").toUpperCase();
+        socket.join(`agency_${zone_id}_${sanitizedTag}`);
+      });
+    }
 
+    socket.on("SOS_ALERT_RECEIVED", async (data) => {
+      const { user_id, sos_id, message } = data;
       await pool.query(
         `
         update sos_requests
-        set status='dispatched'
-        where sos_id=$1 AND status NOT IN ('resolved', 'cancelled')
+        set status='acknowledged'
+        where sos_id=$1
+        AND status NOT IN ('resolved', 'cancelled')
         `,
         [sos_id],
       );
 
-      if (insertDispatch.rowCount === 0) {
-        return (
-          typeof callback === "function" &&
-          callback({
-            success: false,
-            message: `The '${unit_type}' role for SOS #${sos_id} was already claimed by another agency.`,
-          })
-        );
-      }
-
-      const result = await pool.query(
-        `SELECT * from agency_units where unit_id=$1`,
-        [unit_id],
-      );
-      const unit_name = result.rows[0].unit_name;
-
-      await pool.query(
-        `UPDATE agency_units SET status = 'EN_ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
-        [unit_id],
-      );
-
-      if (typeof callback === "function") {
-        callback({
-          success: true,
-          dispatch: insertDispatch.rows[0],
-        });
-      }
-
-      io.emit("CAPABILITY_CLAIMED", {
-        sos_id,
-        claimed_unit_type: unit_type,
-        claimed_by_agency_id: agency_id,
+      io.to(`user_${user_id}`).emit("SOS_ALERT_ACKNOWLEDGED", {
+        message,
+        success: true,
       });
+    });
 
-      io.to(`sos_user_${sos_id}`).emit("CITIZEN_UNIT_EN_ROUTE", {
+    socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
+      const {
         sos_id,
-        agency_name,
         unit_type,
-        unit_name,
-      });
-    } catch (err) {
-      console.error("Error claiming SOS capability:", err);
-      if (typeof callback === "function") {
-        callback({ success: false, message: "Internal server error." });
+        unit_id,
+        agency_id,
+        user_id,
+      } = payload;
+      try {
+        const dispatch = await pool.query(
+          `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status, current_location)
+           VALUES ($1, $2, $3, $4, 'EN ROUTE', $5)
+           ON CONFLICT (sos_id, unit_type) DO NOTHING
+           RETURNING *, ST_AsGeoJSON(current_location)::json as current_location`,
+          [sos_id, agency_id, unit_type, unit_id, current_location],
+        );
+
+        const dispatchData = dispatch.rows;
+
+        await pool.query(
+          `
+        update sos_requests
+        set status='dispatched'
+        where sos_id=$1 AND status NOT IN ('resolved', 'cancelled')
+        `,
+          [sos_id],
+        );
+
+        if (dispatchData.rowCount === 0) {
+          return (
+            typeof callback === "function" &&
+            callback({
+              success: false,
+              message: `The '${unit_type}' role for SOS #${sos_id} was already claimed by another agency.`,
+            })
+          );
+        }
+
+        const result = await pool.query(
+          `SELECT * from agency_units where unit_id=$1`,
+          [unit_id],
+        );
+        const unit = result.rows[0];
+        const unit_name = unit.unit_name;
+        const current_location = unit.current_location;
+
+        await pool.query(
+          `UPDATE agency_units SET status = 'EN_ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
+          [unit_id],
+        );
+
+        if (typeof callback === "function") {
+          callback({
+            success: true,
+            dispatch: dispatchData.rows[0],
+          });
+        }
+
+        io.to(`agency_${zone_id}`).emit("CAPABILITY_CLAIMED", {
+          sos_id,
+          claimed_unit_type: unit_type,
+          claimed_by_agency_id: agency_id,
+        });
+
+        io.to(`user_${user_id}`).emit("CITIZEN_UNIT_EN_ROUTE", {
+          sos_id,
+          dispatch_id: dispatchData.dispatch_id,
+          agency_name,
+          unit_type,
+          unit_name,
+          unit_id,
+          current_location,
+          status: dispatchData.status,
+          assigned_at: dispatchData.assigned_at,
+        });
+      } catch (err) {
+        console.error("Error claiming SOS capability:", err);
+        if (typeof callback === "function") {
+          callback({ success: false, message: "Internal server error." });
+        }
       }
-    }
-  });
+    });
+  }
+
+  if (socket.type === "user") {
+    const { user_id, zone_id } = socket.user;
+
+    socket.join(`user_${user_id}`);
+    socket.join(`user_${zone_id}`);
+  }
 
   socket.on("disconnect", () => {
     console.log(`Client disconnected: ${socket.id}`);
@@ -355,7 +423,7 @@ const registerAgency = catchAsync(async (req, res) => {
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
-  res.cookie("my_jwt_token", token, {
+  res.cookie("agency_jwt_token", token, {
     httpOnly: true,
     secure: true,
     sameSite: "none",
@@ -365,9 +433,9 @@ const registerAgency = catchAsync(async (req, res) => {
   return res.status(200).json({ agency });
 });
 
-const verifyJWT = (req, res, next) => {
+const verifyAgencyJWT = (req, res, next) => {
   try {
-    const token = req.cookies.my_jwt_token;
+    const token = req.cookies.agency_jwt_token;
     if (!token) {
       return res
         .status(401)
@@ -385,7 +453,7 @@ const verifyJWT = (req, res, next) => {
 
 const verifyUserJWT = (req, res, next) => {
   try {
-    const token = req.cookies.my_jwt_token;
+    const token = req.cookies.user_jwt_token;
     if (!token) {
       return res
         .status(401)
@@ -417,7 +485,7 @@ const loginAgency = catchAsync(async (req, res) => {
     agency_name: agency.agency_name,
   };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
-  res.cookie("my_jwt_token", token, {
+  res.cookie("agency_jwt_token", token, {
     httpOnly: true,
     secure: true,
     sameSite: "none",
@@ -550,7 +618,7 @@ const registerUser = catchAsync(async (req, res) => {
   };
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
-  res.cookie("my_jwt_token", token, {
+  res.cookie("user_jwt_token", token, {
     httpOnly: true,
     secure: true,
     sameSite: "none",
@@ -576,7 +644,7 @@ const loginUser = catchAsync(async (req, res) => {
     user_id: user.user_id,
   };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
-  res.cookie("my_jwt_token", token, {
+  res.cookie("user_jwt_token", token, {
     httpOnly: true,
     secure: true,
     sameSite: "none",
@@ -631,24 +699,24 @@ function getBhopalZone(longitude, latitude) {
     if (longitude >= CENTER_LNG) {
       return {
         zone_name: "Bhopal North",
-        zone_id: "Bpl_N",
+        zone_id: "bpl_N",
       };
     } else {
       return {
         zone_name: "Bhopal West",
-        zone_id: "Bpl_W",
+        zone_id: "bpl_W",
       };
     }
   } else {
     if (longitude >= CENTER_LNG) {
       return {
         zone_name: "Bhopal East",
-        zone_id: "Bpl_E",
+        zone_id: "bpl_E",
       };
     } else {
       return {
         zone_name: "Bhopal South",
-        zone_id: "Bpl_S",
+        zone_id: "bpl_S",
       };
     }
   }
@@ -683,10 +751,13 @@ const triggerSos = catchAsync(async (req, res) => {
 
   const io = req.app.get("io");
 
+  io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
+
   agencies.forEach((agency) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
     io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
       sos_id: sos_request.sos_id,
+      user_id: sos_request.user_id,
       status: sos_request.status,
       disaster_type: sos_request.disaster_type,
       description: sos_request.description,
@@ -714,7 +785,10 @@ const triggerSos = catchAsync(async (req, res) => {
 
   res
     .status(200)
-    .json({ message: "Agencies have been notified. Will be arriving shortly" });
+    .json({
+      message: "Agencies have been notified. Will be arriving shortly",
+      user_id,
+    });
 });
 
 export const findNearestAgencies = async (
@@ -791,8 +865,20 @@ export const findNearestAgencies = async (
   return result.rows;
 };
 
-const logout = catchAsync(async (req, res) => {
-  res.clearCookie("my_jwt_token", {
+const logoutUser = catchAsync(async (req, res) => {
+  res.clearCookie("user_jwt_token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+  });
+
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
+});
+
+const logoutAgency = catchAsync(async (req, res) => {
+  res.clearCookie("agency_jwt_token", {
     httpOnly: true,
     secure: true,
     sameSite: "none",
@@ -848,7 +934,6 @@ ORDER BY i.inserted_at DESC;
 
 const getUnitActiveMission = catchAsync(async (req, res) => {
   const { unit_id } = req.params;
-  console.log(unit_id);
   const result = await pool.query(
     `
     SELECT 
@@ -882,12 +967,41 @@ const getUnitActiveMission = catchAsync(async (req, res) => {
   return res.status(200).json(result.rows);
 });
 
-app.get("/api/agency/units", verifyJWT, getAgencyUnits);
-app.get("/api/agency/me", verifyJWT, getMyAgency);
-app.get("/api/agency/sosAlerts", verifyJWT, getSosAlerts);
+const getSosAlert = catchAsync(async (req, res) => {
+  const { sos_id } = req.params;
+  const result = await pool.query(
+    `
+    select sos_id, triggered_at, status, disaster_type, description
+    from sos_requests 
+    where sos_id=$1
+    `,
+    [sos_id],
+  );
+  return res.status(200).json(result.rows);
+});
+
+const getDispatchData = catchAsync(async (req, res) => {
+  const { sos_id } = req.params;
+  const result = await pool.query(
+    `
+    select d.dispatch_id, a.agency_name, a.agency_id, u.unit_name, u.unit_id
+    u.unit_type, d.status, d.assigned_at, ST_AsGeoJSON(u.current_location)::json AS unit_location
+    from sos_dispatches d join agencies a on d.agency_id=a.agency_id join agency_units on
+    d.unit_id=u.unit_id
+    where sos_id=$1
+    `,
+    [sos_id],
+  );
+
+  return res.status(200).json(result.rows);
+});
+
+app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
+app.get("/api/agency/me", verifyAgencyJWT, getMyAgency);
+app.get("/api/agency/sosAlerts", verifyAgencyJWT, getSosAlerts);
 app.get(
   "/api/agency/unit/:unit_id/activeMission",
-  verifyJWT,
+  verifyAgencyJWT,
   getUnitActiveMission,
 );
 app.post("/api/agency/verifyAgency", verifyAgency);
@@ -897,14 +1011,16 @@ app.post("/api/agency/verifyEmail", verifyEmail);
 app.post("/api/agency/verifyEmailOtp", verifyEmailOtp);
 app.post("/api/agency/register", registerAgency);
 app.post("/api/agency/login", loginAgency);
-app.post("/api/agency/logout", verifyJWT, logout);
+app.post("/api/agency/logout", verifyAgencyJWT, logoutAgency);
 app.get("/api/user/me", verifyUserJWT, getMe);
+app.get("/api/user/sosAlert/:sos_id", verifyUserJWT, getSosAlert);
+app.get("/api/user/dispatchData/:sos_id", verifyUserJWT, getDispatchData);
 app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
-app.post("/api/user/logout", verifyUserJWT, logout);
+app.post("/api/user/logout", verifyUserJWT, logoutUser);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);

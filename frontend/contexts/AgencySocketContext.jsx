@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 
-const SocketContext = createContext();
+const AgencySocketContext = createContext();
 
-export const SocketProvider = ({ children }) => {
-  const [socket, setSocket] = useState(null);
+export const AgencySocketProvider = ({ children }) => {
+  const [agencySocket, setAgencySocket] = useState(null);
   const [sosAlerts, setSosAlerts] = useState([]);
 
   useEffect(() => {
@@ -24,9 +24,16 @@ export const SocketProvider = ({ children }) => {
     socketInstance.on("disconnect", (reason) => {
       console.log("🟡 SOCKET DISCONNECTED:", reason);
     });
-    
+
     socketInstance.on("NEW_SOS_ALERT", (payload) => {
       console.log("🚨 NEW SOS RECEIVED:", payload);
+
+      socketInstance.emit("SOS_ALERT_RECEIVED", {
+        success: true,
+        message: "SOS received successfully",
+        sos_id: payload.sos_id,
+        user_id: payload.user_id,
+      });
 
       setSosAlerts((prevAlerts) => {
         const alreadyExists = prevAlerts.some(
@@ -72,7 +79,7 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
-    setSocket(socketInstance);
+    setAgencySocket(socketInstance);
 
     return () => {
       socketInstance.disconnect();
@@ -80,16 +87,16 @@ export const SocketProvider = ({ children }) => {
   }, []);
 
   return (
-    <SocketContext.Provider
+    <AgencySocketContext.Provider
       value={{
-        socket,
+        agencySocket,
         sosAlerts,
         setSosAlerts,
       }}
     >
       {children}
-    </SocketContext.Provider>
+    </AgencySocketContext.Provider>
   );
 };
 
-export const useSocket = () => useContext(SocketContext);
+export const useAgencySocket = () => useContext(AgencySocketContext);
