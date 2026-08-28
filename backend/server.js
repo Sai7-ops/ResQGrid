@@ -991,6 +991,7 @@ const checkActiveSos = catchAsync(async (req, res) => {
     `
     select * from sos_requests where user_id=$1 and status in ('pending', 'acknowledged', 'dispatched')
     `,
+    [user_id],
   );
 
   if (response.rowCount === 0)
