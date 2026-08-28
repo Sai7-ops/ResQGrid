@@ -152,7 +152,7 @@ const useGetAlertStatus = () => {
 
 const apiGetDispatchData = async (sos_id) => {
   const response = await axios.get(
-    `https://resqgrid-x51v.onrender.com/api/user/${sos_id}/dispatchData`,
+    `https://resqgrid-x51v.onrender.com/api/user/dispatchData/${sos_id}`,
     {
       withCredentials: true,
     },
@@ -245,7 +245,7 @@ const UserSOSInbox = () => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {dispatchData.map((dispatch) => {
-            const [longitude, latitude] = dispatch.current_location.coordinates;
+            const [longitude, latitude] = dispatch.unit_location.coordinates;
             return (
               <Marker
                 key={dispatch.dispatch_id}
@@ -525,7 +525,7 @@ const UserSOSForm = () => {
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
   const { triggerSos, isPending } = useTriggerSos();
   const queryClient = useQueryClient();
-  const { sosId, isPending: fetching } = useGetAlertStatus();
+  const { alert_status, isPending: fetching } = useGetAlertStatus();
   const [active, setActive] = useState(false);
 
   const {
@@ -567,7 +567,9 @@ const UserSOSForm = () => {
   }, [coordinates, setValue]);
 
   if (fetching) return <h1>Loading...</h1>;
-  if (sosId) setActive(true);
+  if (alert_status?.length > 0){
+    return <h1>You already have an active SOS triggered</h1>;
+  }
 
   if (active) return <h1>You already have an active sos triggered</h1>;
 
