@@ -198,7 +198,7 @@ const UserSOSInbox = () => {
   const { dispatch_data, isPending: fetching } = useGetDispatchData();
 
   useEffect(() => {
-    if (!isPending && alert_status.length > 0) {
+    if (!isPending && alert_status?.length > 0) {
       setAlertStatus(alert_status[0]);
     }
   }, [alert_status, setAlertStatus, isPending]);
@@ -209,7 +209,7 @@ const UserSOSInbox = () => {
 
   if (isPending || fetching) return <h1>Loading...</h1>;
 
-  if (alert_status.length === 0)
+  if (!alert_status || alert_status.length === 0)
     return <h1>No Active SOS triggered at the moment</h1>;
 
   return (
