@@ -221,7 +221,7 @@ io.on("connection", (socket) => {
     const { user_id, zone_id } = socket.user;
 
     socket.join(`user_${user_id}`);
-    socket.join(`user_${zone_id}`);
+    if (zone_id) socket.join(`user_${zone_id}`);
   }
 
   socket.on("disconnect", () => {
@@ -564,6 +564,8 @@ const registerUser = catchAsync(async (req, res) => {
     address,
     email,
     password,
+    longitude,
+    latitude,
   } = req.body;
   const verified = await redis.get(`verified:user:${aadhaar_no}`);
 
@@ -573,6 +575,7 @@ const registerUser = catchAsync(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 10);
+  const { zone_id, zone_name } = getBhopalZone(longitude, latitude);
 
   const result = await pool.query(
     `
@@ -585,8 +588,10 @@ const registerUser = catchAsync(async (req, res) => {
     state,
     address,
     email,
-    password_hash
-  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    password_hash,
+    zone_id,
+    zone_name
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
   RETURNING *
   `,
     [
@@ -599,6 +604,8 @@ const registerUser = catchAsync(async (req, res) => {
       address,
       email,
       password_hash,
+      zone_id,
+      zone_name,
     ],
   );
 

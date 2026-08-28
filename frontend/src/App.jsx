@@ -1047,6 +1047,11 @@ const useRegisterUser = () => {
 const UserRegistration = ({ setStep, user }) => {
   const { registerUser, isPending } = useRegisterUser();
   const navigate = useNavigate();
+  const { coordinates, loading, fetchLocation } = useGeolocation();
+
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation, loading]);
   const {
     handleSubmit,
     register,
@@ -1056,6 +1061,10 @@ const UserRegistration = ({ setStep, user }) => {
   } = useForm();
 
   const submitHandler = (data) => {
+    if (!coordinates?.latitude || !coordinates?.longitude) {
+      toast.error("Please wait for your location to be fetched.");
+      return;
+    }
     const payload = {
       aadhaar_no: user.aadhaar_no,
       mobile_no: user.mobile_no,
@@ -1066,6 +1075,8 @@ const UserRegistration = ({ setStep, user }) => {
       state: data.state,
       email: data.email,
       password: data.password,
+      longitude: coordinates.longitude,
+      latitude: coordinates.latitude,
     };
     registerUser(payload, {
       onSuccess: () => {
