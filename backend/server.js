@@ -140,13 +140,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
-      const {
-        sos_id,
-        unit_type,
-        unit_id,
-        agency_id,
-        user_id,
-      } = payload;
+      const { sos_id, unit_type, unit_id, agency_id, user_id } = payload;
       try {
         const dispatch = await pool.query(
           `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
@@ -155,8 +149,6 @@ io.on("connection", (socket) => {
            RETURNING *`,
           [sos_id, agency_id, unit_type, unit_id],
         );
-
-        const dispatchData = dispatch.rows;
 
         await pool.query(
           `
@@ -177,6 +169,8 @@ io.on("connection", (socket) => {
           );
         }
 
+        const dispatchData = dispatch.rows[0];
+
         const result = await pool.query(
           `SELECT * from agency_units where unit_id=$1`,
           [unit_id],
@@ -193,7 +187,7 @@ io.on("connection", (socket) => {
         if (typeof callback === "function") {
           callback({
             success: true,
-            dispatch: dispatchData.rows[0],
+            dispatch: dispatchData,
           });
         }
 
