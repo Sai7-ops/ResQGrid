@@ -37,7 +37,6 @@ export const UserSocketProvider = ({ children }) => {
           return { ...prevData, status: "acknowledged" };
         });
       }
-      toast.success("Your SOS alert has been acknowledged!");
     });
 
     socketInstance.on("CITIZEN_UNIT_EN_ROUTE", (payload) => {

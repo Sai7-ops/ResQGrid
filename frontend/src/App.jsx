@@ -140,9 +140,8 @@ const apiGetAlertStatus = async (sos_id) => {
 };
 
 const useGetAlertStatus = () => {
-  const { user_id } = useUserAuth();
   const queryClient = useQueryClient();
-  const sos_id = queryClient.getQueryData(["activeSos", user_id]);
+  const { sos_id } = queryClient.getQueryData(["activeSos"]);
   const { data: alert_status, isPending } = useQuery({
     queryKey: ["sosAlert", sos_id],
     queryFn: () => apiGetAlertStatus(sos_id),
@@ -163,9 +162,8 @@ const apiGetDispatchData = async (sos_id) => {
 };
 
 const useGetDispatchData = () => {
-  const { user_id } = useUserAuth();
   const queryClient = useQueryClient();
-  const sos_id = queryClient.getQueryData(["activeSos", user_id]);
+  const { sos_id } = queryClient.getQueryData(["activeSos"]);
   const { data: dispatch_data, isPending } = useQuery({
     queryKey: ["dispatchData", sos_id],
     queryFn: () => apiGetDispatchData(sos_id),
@@ -206,12 +204,12 @@ const UserSOSInbox = () => {
   }, [alert_status, setAlertStatus, isPending]);
 
   useEffect(() => {
-    if (!fetching) setDispatchData(dispatch_data);
+    if (!fetching && dispatch_data?.length > 0) setDispatchData(dispatch_data);
   }, [dispatch_data, setDispatchData, fetching]);
 
   if (isPending || fetching) return <h1>Loading...</h1>;
 
-  if (!alert_status || alert_status.length === 0)
+  if (!alert_status || alert_status?.length === 0)
     return <h1>No Active SOS triggered at the moment</h1>;
 
   return (
@@ -515,38 +513,21 @@ const useTriggerSos = () => {
   const { mutate: triggerSos, isPending } = useMutation({
     mutationFn: apiTriggerSos,
     onSuccess: (data) => {
-      queryClient.setQueryData(["activeTrigger", data.user_id], true);
+      queryClient.setQueryData(["activeSos"], {
+        sos_id: data.sos_id,
+        active: true,
+      });
     },
   });
   return { triggerSos, isPending };
 };
 
-const apiCheckActiveTrigger = async (user_id) => {
-  const response = await axios.get(
-    `https://resqgrid-x51v.onrender.com/api/user/${user_id}/checkActiveSos`,
-    {
-      withCredentials: true,
-    },
-  );
-
-  return response.data.activeSos;
-};
-
-const useCheckActiveTrigger = () => {
-  const { user } = useUserAuth();
-  const user_id = user.user_id;
-  const { data: activeSos, isPending } = useQuery({
-    queryKey: ["activeTrigger", user_id],
-    queryFn: () => apiCheckActiveTrigger(user_id),
-  });
-  return { activeSos, isPending };
-};
-
 const UserSOSForm = () => {
-  const { activeSos, isPending: fetching } = useCheckActiveTrigger();
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
   const { triggerSos, isPending } = useTriggerSos();
   const queryClient = useQueryClient();
+  const { active = false } = queryClient.getQueryData(["activeSos"]) || {};
+
   const {
     register,
     handleSubmit,
@@ -581,9 +562,7 @@ const UserSOSForm = () => {
     }
   }, [coordinates, setValue]);
 
-  if (fetching) return <h1>Loading...</h1>;
-
-  if (activeSos) return <h1>You already have an active sos triggered</h1>;
+  if (active) return <h1>You already have an active sos triggered</h1>;
 
   return (
     <div>

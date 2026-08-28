@@ -973,9 +973,9 @@ const getDispatchData = catchAsync(async (req, res) => {
   const { sos_id } = req.params;
   const result = await pool.query(
     `
-    select d.dispatch_id, a.agency_name, a.agency_id, u.unit_name, u.unit_id
+    select d.dispatch_id, a.agency_name, a.agency_id, u.unit_name, u.unit_id,
     u.unit_type, d.status, d.assigned_at, ST_AsGeoJSON(u.current_location)::json AS unit_location
-    from sos_dispatches d join agencies a on d.agency_id=a.agency_id join agency_units on
+    from sos_dispatches d join agencies a on d.agency_id=a.agency_id join agency_units u on
     d.unit_id=u.unit_id
     where sos_id=$1
     `,
@@ -983,20 +983,6 @@ const getDispatchData = catchAsync(async (req, res) => {
   );
 
   return res.status(200).json(result.rows);
-});
-
-const checkActiveSos = catchAsync(async (req, res) => {
-  const { user_id } = req.params;
-  const response = await pool.query(
-    `
-    select * from sos_requests where user_id=$1 and status in ('pending', 'acknowledged', 'dispatched')
-    `,
-    [user_id],
-  );
-
-  if (response.rowCount === 0)
-    return res.status(200).json({ activeSos: false });
-  return res.status(200).json({ activeSos: true });
 });
 
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
@@ -1018,7 +1004,6 @@ app.post("/api/agency/logout", verifyAgencyJWT, logoutAgency);
 app.get("/api/user/me", verifyUserJWT, getMe);
 app.get("/api/user/sosAlert/:sos_id", verifyUserJWT, getSosAlert);
 app.get("/api/user/dispatchData/:sos_id", verifyUserJWT, getDispatchData);
-app.get("/api/user/:user_id/checkActiveSos", verifyUserJWT, checkActiveSos);
 app.post("/api/user/verifyUser", verifyUser);
 app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
