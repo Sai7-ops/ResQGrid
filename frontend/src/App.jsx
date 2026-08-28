@@ -140,8 +140,9 @@ const apiGetAlertStatus = async (sos_id) => {
 };
 
 const useGetAlertStatus = () => {
-  const params = useParams();
-  const sos_id = params.sos_id;
+  const { user_id } = useUserAuth();
+  const queryClient = useQueryClient();
+  const sos_id = queryClient.getQueryData(["activeSos", user_id]);
   const { data: alert_status, isPending } = useQuery({
     queryKey: ["sosAlert", sos_id],
     queryFn: () => apiGetAlertStatus(sos_id),
@@ -162,8 +163,9 @@ const apiGetDispatchData = async (sos_id) => {
 };
 
 const useGetDispatchData = () => {
-  const params = useParams();
-  const sos_id = params.sos_id;
+  const { user_id } = useUserAuth();
+  const queryClient = useQueryClient();
+  const sos_id = queryClient.getQueryData(["activeSos", user_id]);
   const { data: dispatch_data, isPending } = useQuery({
     queryKey: ["dispatchData", sos_id],
     queryFn: () => apiGetDispatchData(sos_id),
@@ -544,6 +546,7 @@ const UserSOSForm = () => {
   const { activeSos, isPending: fetching } = useCheckActiveTrigger();
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
   const { triggerSos, isPending } = useTriggerSos();
+  const queryClient = useQueryClient();
   const {
     register,
     handleSubmit,
@@ -561,8 +564,9 @@ const UserSOSForm = () => {
       description: data.description || null,
     };
     triggerSos(payload, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast.success("SOS triggered successfully");
+        queryClient.setQueryData(["activeSos", data.user_id], data.sos_id);
         reset();
       },
       onError: (err) => {
