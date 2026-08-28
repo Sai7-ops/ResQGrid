@@ -144,7 +144,7 @@ const useGetAlertStatus = () => {
   const sos_id = params.sos_id;
   const { data: alert_status, isPending } = useQuery({
     queryKey: ["sosAlert", sos_id],
-    queryFn: apiGetAlertStatus,
+    queryFn: () => apiGetAlertStatus(sos_id),
   });
 
   return { alert_status, isPending };
@@ -166,7 +166,7 @@ const useGetDispatchData = () => {
   const sos_id = params.sos_id;
   const { data: dispatch_data, isPending } = useQuery({
     queryKey: ["dispatchData", sos_id],
-    queryFn: apiGetDispatchData,
+    queryFn: () => apiGetDispatchData(sos_id),
   });
 
   return { dispatch_data, isPending };
