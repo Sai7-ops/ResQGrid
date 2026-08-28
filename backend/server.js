@@ -986,7 +986,7 @@ const getDispatchData = catchAsync(async (req, res) => {
 });
 
 const checkActiveSos = catchAsync(async (req, res) => {
-  const user_id = req.params;
+  const { user_id } = req.params;
   const response = await pool.query(
     `
     select * from sos_requests where user_id=$1 and status in ('pending', 'acknowledged', 'dispatched')
