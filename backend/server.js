@@ -60,9 +60,6 @@ io.use(async (socket, next) => {
       .slice(1)
       .join("=");
 
-    if (!agencyToken || !userToken)
-      return next(new Error("Authentication error: No token provided"));
-
     if (agencyToken) {
       const decoded = jwt.verify(agencyToken, JWT_SECRET);
 
@@ -87,7 +84,7 @@ io.use(async (socket, next) => {
       const result = await pool.query(
         `
         select user_id, mobile_no, dob, age, name, email, zone_id
-        from agencies where user_id = $1
+        from users where user_id = $1
         `,
         [decoded.user_id],
       );
@@ -153,10 +150,10 @@ io.on("connection", (socket) => {
       try {
         const dispatch = await pool.query(
           `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status, current_location)
-           VALUES ($1, $2, $3, $4, 'EN ROUTE', $5)
+           VALUES ($1, $2, $3, $4, 'EN ROUTE')
            ON CONFLICT (sos_id, unit_type) DO NOTHING
-           RETURNING *, ST_AsGeoJSON(current_location)::json as current_location`,
-          [sos_id, agency_id, unit_type, unit_id, current_location],
+           RETURNING *`,
+          [sos_id, agency_id, unit_type, unit_id],
         );
 
         const dispatchData = dispatch.rows;
@@ -170,7 +167,7 @@ io.on("connection", (socket) => {
           [sos_id],
         );
 
-        if (dispatchData.rowCount === 0) {
+        if (dispatch.rowCount === 0) {
           return (
             typeof callback === "function" &&
             callback({
@@ -186,7 +183,7 @@ io.on("connection", (socket) => {
         );
         const unit = result.rows[0];
         const unit_name = unit.unit_name;
-        const current_location = unit.current_location;
+        const unit_location = unit.current_location;
 
         await pool.query(
           `UPDATE agency_units SET status = 'EN_ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
@@ -213,7 +210,7 @@ io.on("connection", (socket) => {
           unit_type,
           unit_name,
           unit_id,
-          current_location,
+          current_location: unit_location,
           status: dispatchData.status,
           assigned_at: dispatchData.assigned_at,
         });
@@ -783,12 +780,10 @@ const triggerSos = catchAsync(async (req, res) => {
     );
   }
 
-  res
-    .status(200)
-    .json({
-      message: "Agencies have been notified. Will be arriving shortly",
-      user_id,
-    });
+  res.status(200).json({
+    message: "Agencies have been notified. Will be arriving shortly",
+    user_id,
+  });
 });
 
 export const findNearestAgencies = async (
