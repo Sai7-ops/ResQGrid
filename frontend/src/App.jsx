@@ -525,7 +525,8 @@ const UserSOSForm = () => {
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
   const { triggerSos, isPending } = useTriggerSos();
   const queryClient = useQueryClient();
-  const {sosId, isPending: fetching} = useGetAlertStatus();
+  const { sosId, isPending: fetching } = useGetAlertStatus();
+  const [active, setActive] = useState(false);
 
   const {
     register,
@@ -546,7 +547,11 @@ const UserSOSForm = () => {
     triggerSos(payload, {
       onSuccess: (data) => {
         toast.success("SOS triggered successfully");
-        queryClient.setQueryData(["activeSos", data.user_id], data.sos_id);
+        queryClient.setQueryData(["activeSos", data.user_id], {
+          ...data,
+          active: true,
+        });
+        setActive(true);
         reset();
       },
       onError: (err) => {
@@ -561,9 +566,10 @@ const UserSOSForm = () => {
     }
   }, [coordinates, setValue]);
 
-  if(fetching) return <h1>Loading...</h1>
+  if (fetching) return <h1>Loading...</h1>;
+  if (sosId) setActive(true);
 
-  if (sosId) return <h1>You already have an active sos triggered</h1>;
+  if (active) return <h1>You already have an active sos triggered</h1>;
 
   return (
     <div>
