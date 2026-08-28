@@ -161,6 +161,24 @@ const apiGetDispatchData = async (sos_id) => {
   return response.data;
 };
 
+const apiGetActiveSos = async () => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/user/activeSos`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetActiveSos = () => {
+  const { data: activeSos, isPending } = useQuery({
+    queryKey: ["activeSos"],
+    queryFn: apiGetActiveSos,
+  });
+  return { activeSos, isPending };
+};
+
 const useGetDispatchData = () => {
   const queryClient = useQueryClient();
   const { sos_id } = queryClient.getQueryData(["activeSos"]);
@@ -477,7 +495,8 @@ const UserLayout = () => {
 
 const UserHome = () => {
   const { user, isPending } = useUserAuth();
-  if (isPending) return <h1>Loading...</h1>;
+  const { isPending: loading } = useGetActiveSos();
+  if (isPending || loading) return <h1>Loading...</h1>;
   return (
     <div>
       <p>Welcome {user.name}</p>
