@@ -128,9 +128,9 @@ const useGeolocation = (options = {}) => {
   return { coordinates, loading, error, fetchLocation };
 };
 
-const apiGetAlertStatus = async (sos_id) => {
+const apiGetAlertStatus = async (user_id) => {
   const response = await axios.get(
-    `https://resqgrid-x51v.onrender.com/api/user/sosAlert/${sos_id}`,
+    `https://resqgrid-x51v.onrender.com/api/user/${user_id}/activeSos`,
     {
       withCredentials: true,
     },
@@ -140,19 +140,19 @@ const apiGetAlertStatus = async (sos_id) => {
 };
 
 const useGetAlertStatus = () => {
-  const queryClient = useQueryClient();
-  const { sos_id } = queryClient.getQueryData(["activeSos"]);
+  const { user } = useUserAuth();
+  const { user_id } = user;
   const { data: alert_status, isPending } = useQuery({
-    queryKey: ["sosAlert", sos_id],
-    queryFn: () => apiGetAlertStatus(sos_id),
+    queryKey: ["activeSos", user_id],
+    queryFn: () => apiGetAlertStatus(user_id),
   });
-
-  return { alert_status, isPending };
+  const sosId = alert_status?.[0]?.sos_id;
+  return { alert_status, sosId, isPending };
 };
 
 const apiGetDispatchData = async (sos_id) => {
   const response = await axios.get(
-    `https://resqgrid-x51v.onrender.com/api/user/dispatchData/${sos_id}`,
+    `https://resqgrid-x51v.onrender.com/api/user/${sos_id}/dispatchData`,
     {
       withCredentials: true,
     },
@@ -161,31 +161,11 @@ const apiGetDispatchData = async (sos_id) => {
   return response.data;
 };
 
-const apiGetActiveSos = async (user_id) => {
-  const response = await axios.get(
-    `https://resqgrid-x51v.onrender.com/api/user/${user_id}/activeSos`,
-    {
-      withCredentials: true,
-    },
-  );
-  return response.data;
-};
-
-const useGetActiveSos = () => {
-  const { user_id } = useUserAuth();
-  const { data: activeSos, isPending } = useQuery({
-    queryKey: ["activeSos"],
-    queryFn: () => apiGetActiveSos(user_id),
-  });
-  return { activeSos, isPending };
-};
-
-const useGetDispatchData = () => {
-  const queryClient = useQueryClient();
-  const { sos_id } = queryClient.getQueryData(["activeSos"]);
+const useGetDispatchData = (sosId) => {
   const { data: dispatch_data, isPending } = useQuery({
-    queryKey: ["dispatchData", sos_id],
-    queryFn: () => apiGetDispatchData(sos_id),
+    queryKey: ["dispatchData", sosId],
+    queryFn: () => apiGetDispatchData(sosId),
+    enabled: !!sosId,
   });
 
   return { dispatch_data, isPending };
@@ -213,8 +193,8 @@ const UserSOSInbox = () => {
     setDispatchData,
   } = useUserSocket();
 
-  const { alert_status, isPending } = useGetAlertStatus();
-  const { dispatch_data, isPending: fetching } = useGetDispatchData();
+  const { alert_status, sosId, isPending } = useGetAlertStatus();
+  const { dispatch_data, isPending: fetching } = useGetDispatchData(sosId);
 
   useEffect(() => {
     if (!isPending && alert_status?.length > 0) {
@@ -496,8 +476,7 @@ const UserLayout = () => {
 
 const UserHome = () => {
   const { user, isPending } = useUserAuth();
-  const { isPending: loading } = useGetActiveSos();
-  if (isPending || loading) return <h1>Loading...</h1>;
+  if (isPending) return <h1>Loading...</h1>;
   return (
     <div>
       <p>Welcome {user.name}</p>
