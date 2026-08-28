@@ -140,7 +140,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
-      const { sos_id, unit_type, unit_id, agency_id, user_id } = payload;
+      const { sos_id, unit_type, unit_id, agency_id } = payload;
       try {
         const dispatch = await pool.query(
           `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
@@ -150,14 +150,24 @@ io.on("connection", (socket) => {
           [sos_id, agency_id, unit_type, unit_id],
         );
 
-        await pool.query(
+        const sos_request = await pool.query(
           `
         update sos_requests
         set status='dispatched'
         where sos_id=$1 AND status NOT IN ('resolved', 'cancelled')
+        returning user_id
         `,
           [sos_id],
         );
+
+        if (sos_request.rowCount === 0) {
+          return callback?.({
+            success: false,
+            message: "SOS not found or already resolved/cancelled.",
+          });
+        }
+        
+        const user_id = sos_request.rows[0].user_id;
 
         if (dispatch.rowCount === 0) {
           return (
