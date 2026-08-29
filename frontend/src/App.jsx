@@ -367,120 +367,121 @@ export const Home = () => {
   }, []);
 
   return (
-    <div
-      ref={root}
-      className="relative flex min-h-dvh w-full flex-col justify-between overflow-x-hidden bg-white text-[#0F172A]"
-    >
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-          maskImage:
-            "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 60% 55% at 50% 40%, rgba(37,99,235,0.05), transparent 70%)",
-        }}
-      />
+<div
+  ref={root}
+  className="relative flex min-h-dvh w-full flex-col items-center justify-between overflow-x-hidden bg-white text-[#0F172A]"
+>
+  <div
+    className="pointer-events-none absolute inset-0"
+    style={{
+      backgroundImage:
+        "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+      backgroundSize: "48px 48px",
+      maskImage:
+        "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
+      WebkitMaskImage:
+        "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
+    }}
+  />
 
-      {[
-        { top: "22%", left: "16%", color: "#2563EB" },
-        { top: "70%", left: "76%", color: "#0D9488" },
-        { top: "78%", left: "20%", color: "#4338CA" },
-        { top: "16%", left: "82%", color: "#0D9488" },
-      ].map((p, i) => (
+  <div
+    className="pointer-events-none absolute inset-0"
+    style={{
+      background:
+        "radial-gradient(ellipse 60% 55% at 50% 40%, rgba(37,99,235,0.05), transparent 70%)",
+    }}
+  />
+
+  {[
+    { top: "22%", left: "16%", color: "#2563EB" },
+    { top: "70%", left: "76%", color: "#0D9488" },
+    { top: "78%", left: "20%", color: "#4338CA" },
+    { top: "16%", left: "82%", color: "#0D9488" },
+  ].map((p, i) => (
+    <span
+      key={i}
+      className="pointer-events-none absolute hidden h-1.5 w-1.5 rounded-full md:block"
+      style={{ top: p.top, left: p.left, backgroundColor: p.color }}
+    >
+      <span
+        ref={(el) => (pingRefs.current[i] = el)}
+        className="absolute -inset-1.5 rounded-full border"
+        style={{ borderColor: p.color }}
+      />
+    </span>
+  ))}
+
+  <div className="h-14 w-full" aria-hidden="true" />
+
+  <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-6 py-8 text-center">
+    <div className="rq-eyebrow mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B] sm:mb-5 sm:text-[12px] sm:tracking-[0.28em]">
+      <span className="relative flex h-1.5 w-1.5">
         <span
-          key={i}
-          className="pointer-events-none absolute h-1.5 w-1.5 rounded-full"
-          style={{ top: p.top, left: p.left, backgroundColor: p.color }}
+          className="rq-status-dot h-1.5 w-1.5 rounded-full bg-[#2563EB]"
+          style={{ boxShadow: "0 0 0 0 rgba(37,99,235,0.5)" }}
+        />
+      </span>
+      Live Coordination Network
+    </div>
+
+    <h1 className="rq-headline text-3xl font-bold leading-tight tracking-tight text-[#0F172A] sm:text-5xl md:text-[3.9rem] md:leading-[1.05]">
+      Welcome to{" "}
+      <span className="bg-linear-to-r from-[#2563EB] via-[#0D9488] to-[#4338CA] bg-clip-text text-transparent">
+        ResQGrid
+      </span>
+    </h1>
+
+    <p className="rq-subtitle mt-4 max-w-lg text-[0.95rem] leading-relaxed text-[#475569] sm:mt-5 sm:text-base">
+      One grid connecting the people who need help, the teams who respond,
+      and the agencies who coordinate it — in real time.
+    </p>
+    <div className="mt-10 flex w-full flex-wrap items-center justify-center gap-4 sm:mt-12 sm:gap-5">
+      {PORTALS.map(({ key, label, desc, to, Icon, accent, ring }) => (
+        <Link
+          key={key}
+          to={to}
+          className="rq-portal group relative w-full max-w-xs rounded-lg border border-[#E2E8F0] bg-white px-5 pb-5 pt-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 sm:w-48"
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.boxShadow = `0 14px 28px -16px ${accent}`)
+          }
+          onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "")}
         >
           <span
-            ref={(el) => (pingRefs.current[i] = el)}
-            className="absolute -inset-1.5 rounded-full border"
-            style={{ borderColor: p.color }}
+            className="absolute left-0 top-0 h-0.5 w-full origin-left scale-x-0 rounded-t-lg transition-transform duration-300 group-hover:scale-x-100"
+            style={{ backgroundColor: accent }}
           />
-        </span>
-      ))}
+          <span
+            className="mb-4 flex h-9 w-9 items-center justify-center rounded-md"
+            style={{ backgroundColor: ring, color: accent }}
+          >
+            <Icon size={18} strokeWidth={2} />
+          </span>
 
-      <div className="relative z-10 flex max-w-3xl flex-col items-center px-6 text-center">
-        <div className="rq-eyebrow mb-5 flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.28em] text-[#64748B]">
-          <span className="relative flex h-1.5 w-1.5">
-            <span
-              className="rq-status-dot h-1.5 w-1.5 rounded-full bg-[#2563EB]"
-              style={{ boxShadow: "0 0 0 0 rgba(37,99,235,0.5)" }}
+          <div className="text-[1rem] font-semibold tracking-tight text-[#0F172A]">
+            {label}
+          </div>
+          <div className="mt-1.5 text-[0.78rem] leading-snug text-[#64748B]">
+            {desc}
+          </div>
+
+          <div
+            className="mt-4 flex items-center gap-1.5 font-mono text-[0.68rem] font-medium uppercase tracking-widest"
+            style={{ color: accent }}
+          >
+            Enter
+            <ArrowRight
+              size={11}
+              className="transition-transform duration-300 group-hover:translate-x-1"
             />
-          </span>
-          Live Coordination Network
-        </div>
-
-        <h1 className="rq-headline text-[2.2rem] font-bold leading-[1.05] tracking-tight text-[#0F172A] sm:text-[3.1rem] md:text-[3.9rem]">
-          Welcome to{" "}
-          <span className="bg-linear-to-r from-[#2563EB] via-[#0D9488] to-[#4338CA] bg-clip-text text-transparent">
-            ResQGrid
-          </span>
-        </h1>
-
-        <p className="rq-subtitle mt-5 max-w-lg text-[1rem] leading-relaxed text-[#475569]">
-          One grid connecting the people who need help, the teams who respond,
-          and the agencies who coordinate it — in real time.
-        </p>
-
-        <div className="mt-12 flex flex-wrap justify-center gap-5">
-          {PORTALS.map(({ key, label, desc, to, Icon, accent, ring }) => (
-            <Link
-              key={key}
-              to={to}
-              className="rq-portal group relative w-49 rounded-lg border border-[#E2E8F0] bg-white px-5 pb-5 pt-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1"
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.boxShadow = `0 14px 28px -16px ${accent}`)
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "")}
-            >
-              <span
-                className="absolute left-0 top-0 h-0.5 w-full origin-left scale-x-0 rounded-t-lg transition-transform duration-300 group-hover:scale-x-100"
-                style={{ backgroundColor: accent }}
-              />
-              <span
-                className="mb-4 flex h-9 w-9 items-center justify-center rounded-md"
-                style={{ backgroundColor: ring, color: accent }}
-              >
-                <Icon size={18} strokeWidth={2} />
-              </span>
-
-              <div className="text-[1rem] font-semibold tracking-tight text-[#0F172A]">
-                {label}
-              </div>
-              <div className="mt-1.5 text-[0.78rem] leading-snug text-[#64748B]">
-                {desc}
-              </div>
-
-              <div
-                className="mt-4 flex items-center gap-1.5 font-mono text-[0.68rem] font-medium uppercase tracking-widest"
-                style={{ color: accent }}
-              >
-                Enter
-                <ArrowRight
-                  size={11}
-                  className="transition-transform duration-300 group-hover:translate-x-1"
-                />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      <footer className="relative z-10 w-full px-4 py-6 text-center font-mono text-[10px] tracking-[0.12em] text-[#94A3B8] sm:text-[11px]">
-        RESQGRID // COORDINATED RESPONSE, ANY SCALE
-      </footer>
+          </div>
+        </Link>
+      ))}
     </div>
+  </main>
+  <footer className="relative z-10 flex h-14 w-full items-center justify-center px-4 font-mono text-[10px] tracking-[0.12em] text-[#94A3B8] sm:text-[11px]">
+    RESQGRID // COORDINATED RESPONSE, ANY SCALE
+  </footer>
+</div>
   );
 };
 
