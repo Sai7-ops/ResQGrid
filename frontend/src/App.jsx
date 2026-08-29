@@ -77,6 +77,9 @@ import {
   Home as HomeIcon,
   Calendar,
   AlertCircle,
+  Menu,
+  X,
+  LogOut,
 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -366,7 +369,7 @@ export const Home = () => {
   return (
     <div
       ref={root}
-      className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-white text-[#0F172A]"
+      className="relative flex min-h-dvh w-full flex-col justify-between overflow-x-hidden bg-white text-[#0F172A]"
     >
       <div
         className="pointer-events-none absolute inset-0"
@@ -474,7 +477,7 @@ export const Home = () => {
         </div>
       </div>
 
-      <footer className="absolute bottom-6 left-0 right-0 text-center font-mono text-[11px] tracking-[0.12em] text-[#94A3B8]">
+      <footer className="relative z-10 w-full px-4 py-6 text-center font-mono text-[10px] tracking-[0.12em] text-[#94A3B8] sm:text-[11px]">
         RESQGRID // COORDINATED RESPONSE, ANY SCALE
       </footer>
     </div>
@@ -1056,9 +1059,17 @@ const useLogoutUser = () => {
   });
   return { logoutUser, isPending };
 };
+
 const UserLayout = () => {
   const { logoutUser, isPending } = useLogoutUser();
   const layoutRef = useRef(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navLinks = [
+    { to: "/user/home", label: "Home", Icon: HomeIcon },
+    { to: "/user/sosForm", label: "Trigger SOS", Icon: AlertTriangle },
+    { to: "/user/sosInbox", label: "My Alerts", Icon: Siren },
+    { to: "/user/inbox", label: "Inbox", Icon: Inbox },
+  ];
 
   const logoutHandler = () => {
     logoutUser();
@@ -1117,15 +1128,15 @@ const UserLayout = () => {
           }}
         />
 
-        <header className="ul-header relative z-10 border-b border-[#E2E8F0] bg-white shadow-sm">
+        <header className="ul-header relative z-40 border-b border-[#E2E8F0] bg-white shadow-sm">
           <div className="bg-[#0F172A]">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
               <span>Citizen Emergency Portal</span>
               <span>Official Platform</span>
             </div>
           </div>
 
-          <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
             <div>
               <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
                 <span
@@ -1139,17 +1150,8 @@ const UserLayout = () => {
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
-              {[
-                { to: "/user/home", label: "Home", Icon: HomeIcon },
-                {
-                  to: "/user/sosForm",
-                  label: "Trigger SOS",
-                  Icon: AlertTriangle,
-                },
-                { to: "/user/sosInbox", label: "My Alerts", Icon: Siren },
-                { to: "/user/inbox", label: "Inbox", Icon: Inbox },
-              ].map(({ to, label, Icon }) => (
+            <div className="hidden items-center gap-2 lg:flex">
+              {navLinks.map(({ to, label, Icon }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -1173,7 +1175,85 @@ const UserLayout = () => {
                 {isPending ? "Logging out..." : "Logout"}
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563EB] lg:hidden"
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </nav>
+
+          {isMobileMenuOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity lg:hidden"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
+          <aside
+            className={`fixed top-0 right-0 z-50 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+              isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <div>
+                <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: USER_ACCENT }}
+                  />
+                  Citizen Portal
+                </div>
+                <h2 className="text-base font-bold text-slate-900">
+                  ResQGrid <span style={{ color: USER_ACCENT }}>Citizen</span>
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
+              {navLinks.map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
+                      isActive
+                        ? "bg-[#2563EB] text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`
+                  }
+                >
+                  <Icon size={18} strokeWidth={2.2} />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-100 p-4">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  logoutHandler();
+                }}
+                disabled={isPending}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+              >
+                <LogOut size={16} />
+                {isPending ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          </aside>
         </header>
 
         <main className="ul-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
@@ -2175,13 +2255,13 @@ export const UserRegister = () => {
           </h1>
         </div>
 
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex w-full items-center justify-between">
           {USER_STEPS.map(({ id, label, Icon }, i) => {
             const isDone = step > id;
             const isActive = step === id;
             return (
-              <div key={id} className="flex flex-1 items-center">
-                <div className="flex flex-col items-center gap-1.5">
+              <div key={id}>
+                <div className="flex shrink-0 flex-col items-center gap-1.5">
                   <div
                     className="flex h-8 w-8 items-center justify-center rounded-full border text-[0.75rem] font-semibold transition-colors"
                     style={{
@@ -2197,15 +2277,16 @@ export const UserRegister = () => {
                     {Icon && <Icon size={14} strokeWidth={2.2} />}
                   </div>
                   <span
-                    className="hidden text-[0.65rem] font-bold sm:block"
+                    className="hidden text-center text-[0.65rem] font-bold sm:block"
                     style={{ color: isActive ? USER_ACCENT : "#94A3B8" }}
                   >
                     {label}
                   </span>
                 </div>
+
                 {i < USER_STEPS.length - 1 && (
                   <div
-                    className="mx-1.5 h-px flex-1"
+                    className="mx-1 h-px flex-1 transition-colors duration-300 sm:mx-2"
                     style={{
                       backgroundColor: isDone ? USER_ACCENT : "#E2E8F0",
                     }}
@@ -2441,6 +2522,19 @@ const useLogoutAgency = () => {
 const AgencyLayout = () => {
   const layoutRef = useRef(null);
   const { logoutAgency, isPending } = useLogoutAgency();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navLinks = [
+    { to: "/agency/home", label: "Home", Icon: HomeIcon },
+    {
+      to: "/agency/dashboard",
+      label: "Dashboard",
+      Icon: LayoutDashboard,
+    },
+    { to: "/agency/inbox", label: "Inbox", Icon: Inbox },
+    { to: "/agency/units", label: "Units", Icon: Navigation },
+    { to: "/agency/sosInbox", label: "SOS Inbox", Icon: Siren },
+  ];
+
   const logoutHandler = () => {
     logoutAgency();
   };
@@ -2497,15 +2591,15 @@ const AgencyLayout = () => {
           }}
         />
 
-        <header className="al-header relative z-10 border-b border-[#E2E8F0] bg-white shadow-sm">
+        <header className="al-header relative z-40 border-b border-[#E2E8F0] bg-white shadow-sm">
           <div className="bg-[#0F172A]">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
               <span>Government Agency Portal</span>
               <span>Official Website</span>
             </div>
           </div>
 
-          <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
             <div>
               <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
                 <span
@@ -2519,18 +2613,8 @@ const AgencyLayout = () => {
               </h1>
             </div>
 
-            <div className="flex items-center gap-2">
-              {[
-                { to: "/agency/home", label: "Home", Icon: HomeIcon },
-                {
-                  to: "/agency/dashboard",
-                  label: "Dashboard",
-                  Icon: LayoutDashboard,
-                },
-                { to: "/agency/inbox", label: "Inbox", Icon: Inbox },
-                { to: "/agency/units", label: "Units", Icon: Navigation },
-                { to: "/agency/sosInbox", label: "SOS Inbox", Icon: Siren },
-              ].map(({ to, label, Icon }) => (
+            <div className="hidden items-center gap-2 lg:flex">
+              {navLinks.map(({ to, label, Icon }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -2554,7 +2638,85 @@ const AgencyLayout = () => {
                 {isPending ? "Logging out..." : "Logout"}
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0D9488] lg:hidden"
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </nav>
+
+          {isMobileMenuOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity lg:hidden"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
+          <aside
+            className={`fixed top-0 right-0 z-50 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+              isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+              <div>
+                <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: ACCENT }}
+                  />
+                  Agency Portal
+                </div>
+                <h2 className="text-base font-bold text-slate-900">
+                  ResQGrid <span style={{ color: ACCENT }}>Command</span>
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
+              {navLinks.map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
+                      isActive
+                        ? "bg-[#0D9488] text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`
+                  }
+                >
+                  <Icon size={18} strokeWidth={2.2} />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-100 p-4">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  logoutHandler();
+                }}
+                disabled={isPending}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+              >
+                <LogOut size={16} />
+                {isPending ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          </aside>
         </header>
 
         <main className="al-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
@@ -4165,13 +4327,13 @@ export const AgencyRegister = () => {
           </h1>
         </div>
 
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex w-full items-center justify-between">
           {STEPS.map(({ id, label, Icon }, i) => {
             const isDone = step > id;
             const isActive = step === id;
             return (
-              <div key={id} className="flex flex-1 items-center">
-                <div className="flex flex-col items-center gap-1.5">
+              <div key={id}>
+                <div className="flex flex-col items-center gap-1.5 shrink-0">
                   <div
                     className="flex h-8 w-8 items-center justify-center rounded-full border text-[0.75rem] font-semibold transition-colors"
                     style={{
@@ -4183,7 +4345,7 @@ export const AgencyRegister = () => {
                     {Icon && <Icon size={14} strokeWidth={2.2} />}
                   </div>
                   <span
-                    className="hidden text-[0.65rem] font-medium sm:block"
+                    className="hidden text-center text-[0.65rem] font-medium sm:block"
                     style={{ color: isActive ? ACCENT : "#94A3B8" }}
                   >
                     {label}
@@ -4191,7 +4353,7 @@ export const AgencyRegister = () => {
                 </div>
                 {i < STEPS.length - 1 && (
                   <div
-                    className="mx-1.5 h-px flex-1"
+                    className="mx-1 h-px flex-1 transition-colors duration-300 sm:mx-2"
                     style={{ backgroundColor: isDone ? ACCENT : "#E2E8F0" }}
                   />
                 )}
@@ -4545,7 +4707,7 @@ const VerifyGovCredentials = () => {
 
   const submitHandler = () => {
     return;
-  }
+  };
 
   return (
     <div>
