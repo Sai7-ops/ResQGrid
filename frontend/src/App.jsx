@@ -367,121 +367,121 @@ export const Home = () => {
   }, []);
 
   return (
-<div
-  ref={root}
-  className="relative flex min-h-dvh w-full flex-col items-center justify-between overflow-x-hidden bg-white text-[#0F172A]"
->
-  <div
-    className="pointer-events-none absolute inset-0"
-    style={{
-      backgroundImage:
-        "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
-      backgroundSize: "48px 48px",
-      maskImage:
-        "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
-      WebkitMaskImage:
-        "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
-    }}
-  />
-
-  <div
-    className="pointer-events-none absolute inset-0"
-    style={{
-      background:
-        "radial-gradient(ellipse 60% 55% at 50% 40%, rgba(37,99,235,0.05), transparent 70%)",
-    }}
-  />
-
-  {[
-    { top: "22%", left: "16%", color: "#2563EB" },
-    { top: "70%", left: "76%", color: "#0D9488" },
-    { top: "78%", left: "20%", color: "#4338CA" },
-    { top: "16%", left: "82%", color: "#0D9488" },
-  ].map((p, i) => (
-    <span
-      key={i}
-      className="pointer-events-none absolute hidden h-1.5 w-1.5 rounded-full md:block"
-      style={{ top: p.top, left: p.left, backgroundColor: p.color }}
+    <div
+      ref={root}
+      className="relative flex min-h-dvh w-full flex-col items-center justify-between overflow-x-hidden bg-white text-[#0F172A]"
     >
-      <span
-        ref={(el) => (pingRefs.current[i] = el)}
-        className="absolute -inset-1.5 rounded-full border"
-        style={{ borderColor: p.color }}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
+        }}
       />
-    </span>
-  ))}
 
-  <div className="h-14 w-full" aria-hidden="true" />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 40%, rgba(37,99,235,0.05), transparent 70%)",
+        }}
+      />
 
-  <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-6 py-8 text-center">
-    <div className="rq-eyebrow mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B] sm:mb-5 sm:text-[12px] sm:tracking-[0.28em]">
-      <span className="relative flex h-1.5 w-1.5">
+      {[
+        { top: "22%", left: "16%", color: "#2563EB" },
+        { top: "70%", left: "76%", color: "#0D9488" },
+        { top: "78%", left: "20%", color: "#4338CA" },
+        { top: "16%", left: "82%", color: "#0D9488" },
+      ].map((p, i) => (
         <span
-          className="rq-status-dot h-1.5 w-1.5 rounded-full bg-[#2563EB]"
-          style={{ boxShadow: "0 0 0 0 rgba(37,99,235,0.5)" }}
-        />
-      </span>
-      Live Coordination Network
-    </div>
-
-    <h1 className="rq-headline text-3xl font-bold leading-tight tracking-tight text-[#0F172A] sm:text-5xl md:text-[3.9rem] md:leading-[1.05]">
-      Welcome to{" "}
-      <span className="bg-linear-to-r from-[#2563EB] via-[#0D9488] to-[#4338CA] bg-clip-text text-transparent">
-        ResQGrid
-      </span>
-    </h1>
-
-    <p className="rq-subtitle mt-4 max-w-lg text-[0.95rem] leading-relaxed text-[#475569] sm:mt-5 sm:text-base">
-      One grid connecting the people who need help, the teams who respond,
-      and the agencies who coordinate it — in real time.
-    </p>
-    <div className="mt-10 flex w-full flex-wrap items-center justify-center gap-4 sm:mt-12 sm:gap-5">
-      {PORTALS.map(({ key, label, desc, to, Icon, accent, ring }) => (
-        <Link
-          key={key}
-          to={to}
-          className="rq-portal group relative w-full max-w-xs rounded-lg border border-[#E2E8F0] bg-white px-5 pb-5 pt-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 sm:w-48"
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.boxShadow = `0 14px 28px -16px ${accent}`)
-          }
-          onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "")}
+          key={i}
+          className="pointer-events-none absolute hidden h-1.5 w-1.5 rounded-full md:block"
+          style={{ top: p.top, left: p.left, backgroundColor: p.color }}
         >
           <span
-            className="absolute left-0 top-0 h-0.5 w-full origin-left scale-x-0 rounded-t-lg transition-transform duration-300 group-hover:scale-x-100"
-            style={{ backgroundColor: accent }}
+            ref={(el) => (pingRefs.current[i] = el)}
+            className="absolute -inset-1.5 rounded-full border"
+            style={{ borderColor: p.color }}
           />
-          <span
-            className="mb-4 flex h-9 w-9 items-center justify-center rounded-md"
-            style={{ backgroundColor: ring, color: accent }}
-          >
-            <Icon size={18} strokeWidth={2} />
-          </span>
-
-          <div className="text-[1rem] font-semibold tracking-tight text-[#0F172A]">
-            {label}
-          </div>
-          <div className="mt-1.5 text-[0.78rem] leading-snug text-[#64748B]">
-            {desc}
-          </div>
-
-          <div
-            className="mt-4 flex items-center gap-1.5 font-mono text-[0.68rem] font-medium uppercase tracking-widest"
-            style={{ color: accent }}
-          >
-            Enter
-            <ArrowRight
-              size={11}
-              className="transition-transform duration-300 group-hover:translate-x-1"
-            />
-          </div>
-        </Link>
+        </span>
       ))}
+
+      <div className="h-14 w-full" aria-hidden="true" />
+
+      <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-6 py-8 text-center">
+        <div className="rq-eyebrow mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B] sm:mb-5 sm:text-[12px] sm:tracking-[0.28em]">
+          <span className="relative flex h-1.5 w-1.5">
+            <span
+              className="rq-status-dot h-1.5 w-1.5 rounded-full bg-[#2563EB]"
+              style={{ boxShadow: "0 0 0 0 rgba(37,99,235,0.5)" }}
+            />
+          </span>
+          Live Coordination Network
+        </div>
+
+        <h1 className="rq-headline text-3xl font-bold leading-tight tracking-tight text-[#0F172A] sm:text-5xl md:text-[3.9rem] md:leading-[1.05]">
+          Welcome to{" "}
+          <span className="bg-linear-to-r from-[#2563EB] via-[#0D9488] to-[#4338CA] bg-clip-text text-transparent">
+            ResQGrid
+          </span>
+        </h1>
+
+        <p className="rq-subtitle mt-4 max-w-lg text-[0.95rem] leading-relaxed text-[#475569] sm:mt-5 sm:text-base">
+          One grid connecting the people who need help, the teams who respond,
+          and the agencies who coordinate it — in real time.
+        </p>
+        <div className="mt-10 flex w-full flex-wrap items-center justify-center gap-4 sm:mt-12 sm:gap-5">
+          {PORTALS.map(({ key, label, desc, to, Icon, accent, ring }) => (
+            <Link
+              key={key}
+              to={to}
+              className="rq-portal group relative w-full max-w-xs rounded-lg border border-[#E2E8F0] bg-white px-5 pb-5 pt-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 sm:w-48"
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.boxShadow = `0 14px 28px -16px ${accent}`)
+              }
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "")}
+            >
+              <span
+                className="absolute left-0 top-0 h-0.5 w-full origin-left scale-x-0 rounded-t-lg transition-transform duration-300 group-hover:scale-x-100"
+                style={{ backgroundColor: accent }}
+              />
+              <span
+                className="mb-4 flex h-9 w-9 items-center justify-center rounded-md"
+                style={{ backgroundColor: ring, color: accent }}
+              >
+                <Icon size={18} strokeWidth={2} />
+              </span>
+
+              <div className="text-[1rem] font-semibold tracking-tight text-[#0F172A]">
+                {label}
+              </div>
+              <div className="mt-1.5 text-[0.78rem] leading-snug text-[#64748B]">
+                {desc}
+              </div>
+
+              <div
+                className="mt-4 flex items-center gap-1.5 font-mono text-[0.68rem] font-medium uppercase tracking-widest"
+                style={{ color: accent }}
+              >
+                Enter
+                <ArrowRight
+                  size={11}
+                  className="transition-transform duration-300 group-hover:translate-x-1"
+                />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </main>
+      <footer className="relative z-10 flex h-14 w-full items-center justify-center px-4 font-mono text-[10px] tracking-[0.12em] text-[#94A3B8] sm:text-[11px]">
+        RESQGRID // COORDINATED RESPONSE, ANY SCALE
+      </footer>
     </div>
-  </main>
-  <footer className="relative z-10 flex h-14 w-full items-center justify-center px-4 font-mono text-[10px] tracking-[0.12em] text-[#94A3B8] sm:text-[11px]">
-    RESQGRID // COORDINATED RESPONSE, ANY SCALE
-  </footer>
-</div>
   );
 };
 
@@ -1107,8 +1107,9 @@ const UserLayout = () => {
     <UserSocketProvider>
       <div
         ref={layoutRef}
-        className="relative z-0 min-h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A]"
+        className="relative z-0 min-h-screen overflow-x-hidden bg-[#F8FAFC] text-[#0F172A]"
       >
+
         <div
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
@@ -1129,15 +1130,15 @@ const UserLayout = () => {
           }}
         />
 
-        <header className="ul-header relative z-40 border-b border-[#E2E8F0] bg-white shadow-sm">
+        <header className="ul-header relative z-30 border-b border-[#E2E8F0] bg-white shadow-sm">
           <div className="bg-[#0F172A]">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300 sm:px-6">
               <span>Citizen Emergency Portal</span>
               <span>Official Platform</span>
             </div>
           </div>
 
-          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
             <div>
               <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
                 <span
@@ -1186,76 +1187,76 @@ const UserLayout = () => {
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </nav>
-
-          {isMobileMenuOpen && (
-            <div
-              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity lg:hidden"
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-          )}
-
-          <aside
-            className={`fixed top-0 right-0 z-50 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
-              isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-              <div>
-                <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: USER_ACCENT }}
-                  />
-                  Citizen Portal
-                </div>
-                <h2 className="text-base font-bold text-slate-900">
-                  ResQGrid <span style={{ color: USER_ACCENT }}>Citizen</span>
-                </h2>
-              </div>
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Close menu"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
-              {navLinks.map(({ to, label, Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
-                      isActive
-                        ? "bg-[#2563EB] text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    }`
-                  }
-                >
-                  <Icon size={18} strokeWidth={2.2} />
-                  {label}
-                </NavLink>
-              ))}
-            </div>
-
-            <div className="border-t border-slate-100 p-4">
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  logoutHandler();
-                }}
-                disabled={isPending}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
-              >
-                <LogOut size={16} />
-                {isPending ? "Logging out..." : "Logout"}
-              </button>
-            </div>
-          </aside>
         </header>
+
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        <aside
+          className={`fixed top-0 right-0 z-60 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+            isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+              <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: USER_ACCENT }}
+                />
+                Citizen Portal
+              </div>
+              <h2 className="text-base font-bold text-slate-900">
+                ResQGrid <span style={{ color: USER_ACCENT }}>Citizen</span>
+              </h2>
+            </div>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close menu"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
+            {navLinks.map(({ to, label, Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
+                    isActive
+                      ? "bg-[#2563EB] text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`
+                }
+              >
+                <Icon size={18} strokeWidth={2.2} />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+
+          <div className="border-t border-slate-100 p-4">
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                logoutHandler();
+              }}
+              disabled={isPending}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+            >
+              <LogOut size={16} />
+              {isPending ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        </aside>
 
         <main className="ul-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
           <Outlet />
@@ -2570,7 +2571,7 @@ const AgencyLayout = () => {
     <AgencySocketProvider>
       <div
         ref={layoutRef}
-        className="relative z-0 min-h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A]"
+        className="relative z-0 min-h-screen overflow-x-hidden bg-[#F8FAFC] text-[#0F172A]"
       >
         <div
           className="pointer-events-none absolute inset-0 -z-10"
@@ -2592,15 +2593,15 @@ const AgencyLayout = () => {
           }}
         />
 
-        <header className="al-header relative z-40 border-b border-[#E2E8F0] bg-white shadow-sm">
+        <header className="al-header relative z-30 border-b border-[#E2E8F0] bg-white shadow-sm">
           <div className="bg-[#0F172A]">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300 sm:px-6">
               <span>Government Agency Portal</span>
               <span>Official Website</span>
             </div>
           </div>
 
-          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
             <div>
               <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
                 <span
@@ -2649,76 +2650,76 @@ const AgencyLayout = () => {
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </nav>
-
-          {isMobileMenuOpen && (
-            <div
-              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs transition-opacity lg:hidden"
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-          )}
-
-          <aside
-            className={`fixed top-0 right-0 z-50 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
-              isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-              <div>
-                <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: ACCENT }}
-                  />
-                  Agency Portal
-                </div>
-                <h2 className="text-base font-bold text-slate-900">
-                  ResQGrid <span style={{ color: ACCENT }}>Command</span>
-                </h2>
-              </div>
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Close menu"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
-              {navLinks.map(({ to, label, Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
-                      isActive
-                        ? "bg-[#0D9488] text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    }`
-                  }
-                >
-                  <Icon size={18} strokeWidth={2.2} />
-                  {label}
-                </NavLink>
-              ))}
-            </div>
-
-            <div className="border-t border-slate-100 p-4">
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  logoutHandler();
-                }}
-                disabled={isPending}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
-              >
-                <LogOut size={16} />
-                {isPending ? "Logging out..." : "Logout"}
-              </button>
-            </div>
-          </aside>
         </header>
+
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        <aside
+          className={`fixed top-0 right-0 z-60 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+            isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+              <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: ACCENT }}
+                />
+                Agency Portal
+              </div>
+              <h2 className="text-base font-bold text-slate-900">
+                ResQGrid <span style={{ color: ACCENT }}>Command</span>
+              </h2>
+            </div>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close menu"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
+            {navLinks.map(({ to, label, Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
+                    isActive
+                      ? "bg-[#0D9488] text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`
+                }
+              >
+                <Icon size={18} strokeWidth={2.2} />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+
+          <div className="border-t border-slate-100 p-4">
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                logoutHandler();
+              }}
+              disabled={isPending}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+            >
+              <LogOut size={16} />
+              {isPending ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        </aside>
 
         <main className="al-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
           <Outlet />
