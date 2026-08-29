@@ -10,7 +10,13 @@ import {
   useParams,
 } from "react-router-dom";
 import "./App.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import axios from "axios";
 import {
   AgencySocketProvider,
@@ -32,8 +38,218 @@ import { useForm } from "react-hook-form";
 import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import gsap from "gsap";
+
+import {
+  Search,
+  Filter,
+  Truck,
+  Radio,
+  Package,
+  Mail,
+  Phone,
+  Crosshair,
+  Navigation,
+  Eye,
+  EyeOff,
+  Building,
+  MessageSquare,
+  Shield,
+  MapPin,
+  User,
+  Landmark,
+  ArrowRight,
+  LayoutDashboard,
+  Inbox,
+  Activity,
+  AlertTriangle,
+  Zap,
+  CheckCircle2,
+  ChevronRight,
+  ShieldAlert,
+  BarChart3,
+  Siren,
+  Users,
+  Clock,
+  ArrowUpRight,
+  Download,
+  Home as HomeIcon,
+  Calendar,
+  AlertCircle,
+} from "lucide-react";
 
 const queryClient = new QueryClient();
+
+const ACCENT = "#0D9488";
+const USER_ACCENT = "#2563EB";
+
+const STEPS = [
+  { id: 1, label: "Agency", Icon: Building },
+  { id: 2, label: "Personnel", Icon: User },
+  { id: 3, label: "SMS OTP", Icon: MessageSquare },
+  { id: 4, label: "Email", Icon: Mail },
+  { id: 5, label: "Email OTP", Icon: Shield },
+  { id: 6, label: "Details", Icon: MapPin },
+];
+
+const USER_STEPS = [
+  { id: 1, label: "Identity", Icon: User },
+  { id: 2, label: "Verify", Icon: MessageSquare },
+  { id: 3, label: "Details", Icon: MapPin },
+];
+
+const PORTALS = [
+  {
+    key: "user",
+    label: "User",
+    desc: "Request help and track your response",
+    to: "user/register",
+    Icon: User,
+    accent: "#2563EB",
+    ring: "rgba(37,99,235,0.10)",
+  },
+  {
+    key: "agency",
+    label: "Agency",
+    desc: "Dispatch teams and manage response",
+    to: "agency/register",
+    Icon: Shield,
+    accent: "#0D9488",
+    ring: "rgba(13,148,136,0.10)",
+  },
+  {
+    key: "gov",
+    label: "Government",
+    desc: "Oversee regions and coordinate agencies",
+    to: "gov/register",
+    Icon: Landmark,
+    accent: "#4338CA",
+    ring: "rgba(67,56,202,0.10)",
+  },
+];
+
+const DISASTER_TYPES = [
+  { value: "flood", label: "Flood" },
+  { value: "fire", label: "Fire" },
+  { value: "earthquake", label: "Earthquake" },
+  { value: "cyclone", label: "Cyclone" },
+  { value: "medical_emergency", label: "Medical Emergency" },
+  { value: "crowd_hazard", label: "Crowd Hazard" },
+];
+
+const FieldLabel = ({ children }) => (
+  <span className="mb-1.5 block text-[0.8rem] font-medium text-[#334155]">
+    {children}
+  </span>
+);
+
+const FieldError = ({ message }) =>
+  message ? (
+    <p className="mt-1.5 text-[0.75rem] font-medium text-[#DC2626]">
+      {message}
+    </p>
+  ) : null;
+
+const inputClass =
+  "w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-[0.92rem] text-[#0F172A] " +
+  "placeholder:text-[#94A3B8] outline-none transition focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D948826]";
+
+const userInputClass =
+  "w-full rounded-lg border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-[0.92rem] text-[#0F172A] " +
+  "placeholder:text-[#94A3B8] outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB26]";
+
+const PrimaryButton = ({ children, disabled, ...props }) => (
+  <button
+    disabled={disabled}
+    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0D9488] px-4 py-2.5 text-[0.9rem] font-semibold text-white transition hover:bg-[#0B7C72] disabled:cursor-not-allowed disabled:opacity-60"
+    {...props}
+  >
+    {disabled && (
+      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+    )}
+    {children}
+  </button>
+);
+
+const UserPrimaryButton = ({ children, disabled, ...props }) => (
+  <button
+    disabled={disabled}
+    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-[0.9rem] font-semibold text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60"
+    {...props}
+  >
+    {disabled && (
+      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+    )}
+    {children}
+  </button>
+);
+
+const CapabilityCheckbox = ({ label, inputId, registerMethod, disabled }) => (
+  <label
+    htmlFor={inputId}
+    className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3.5 text-[0.85rem] font-semibold text-[#0F172A] transition border-[#E2E8F0] bg-white hover:bg-[#F0FDFA] has-checked:border-[#0D9488] has-checked:bg-[#F0FDFA] ${
+      disabled ? "cursor-not-allowed opacity-60" : ""
+    }`}
+  >
+    <input
+      id={inputId}
+      type="checkbox"
+      value={label}
+      disabled={disabled}
+      className="peer sr-only"
+      {...registerMethod}
+    />
+    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 border-[#CBD5E1] bg-white transition peer-checked:border-[#0D9488] peer-checked:bg-[#0D9488]">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        className="h-3.5 w-3.5 hidden peer-checked:block"
+      >
+        <path
+          d="M5 13l4 4L19 7"
+          stroke="white"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+    {label}
+  </label>
+);
+
+const hqIcon = new L.divIcon({
+  className: "custom-hq-marker",
+  html: `<div style="background-color: #0F172A; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="background-color: white; width: 8px; height: 8px; border-radius: 50%;"></div></div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+  popupAnchor: [0, -12],
+});
+
+const unitIcon = new L.divIcon({
+  className: "custom-unit-marker",
+  html: `<div style="background-color: #0D9488; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="background-color: white; width: 6px; height: 6px; border-radius: 50%;"></div></div>`,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+  popupAnchor: [0, -10],
+});
+
+const userLocationIcon = new L.divIcon({
+  className: "custom-user-marker",
+  html: `<div style="background-color: #2563EB; width: 22px; height: 22px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;"><div style="background-color: white; width: 6px; height: 6px; border-radius: 50%;"></div></div>`,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  popupAnchor: [0, -11],
+});
+
+const sosAlertMarkerIcon = new L.divIcon({
+  className: "custom-sos-marker",
+  html: `<div style="background-color: #DC2626; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; animation: pulse 1.5s infinite;"><div style="background-color: white; width: 8px; height: 8px; border-radius: 50%;"></div></div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+  popupAnchor: [0, -12],
+});
 
 function App() {
   return (
@@ -77,14 +293,218 @@ function App() {
 }
 
 export const Home = () => {
+  const root = useRef(null);
+  const pingRefs = useRef([]);
+  const hasAnimated = useRef(false);
+
+  useLayoutEffect(() => {
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
+
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({
+        defaults: { ease: "power3.out" },
+        onComplete: () => {
+          gsap.set(
+            [".rq-eyebrow", ".rq-headline", ".rq-subtitle", ".rq-portal"],
+            { clearProps: "opacity,transform" },
+          );
+        },
+      });
+
+      tl.fromTo(
+        ".rq-eyebrow",
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.6 },
+      )
+        .fromTo(
+          ".rq-headline",
+          { opacity: 0, y: 18 },
+          { opacity: 1, y: 0, duration: 0.7 },
+          "-=0.35",
+        )
+        .fromTo(
+          ".rq-subtitle",
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.6 },
+          "-=0.4",
+        )
+        .fromTo(
+          ".rq-portal",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.55, stagger: 0.12 },
+          "-=0.3",
+        );
+
+      gsap.to(".rq-status-dot", {
+        boxShadow: "0 0 0 8px rgba(37,99,235,0)",
+        repeat: -1,
+        duration: 1.8,
+        ease: "power1.out",
+      });
+
+      pingRefs.current.forEach((el, i) => {
+        if (!el) return;
+        gsap.fromTo(
+          el,
+          { scale: 0.4, opacity: 0.5 },
+          {
+            scale: 3,
+            opacity: 0,
+            duration: 3,
+            repeat: -1,
+            delay: i * 0.9,
+            ease: "power1.out",
+          },
+        );
+      });
+    }, root);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <div>
-      <h1>Welcome To ResQGrid</h1>
-      <Link to="/user/register">User</Link>
-      <Link to="/agency/register">Agency</Link>
-      <Link to="/gov/register">Government</Link>
+    <div
+      ref={root}
+      className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-white text-[#0F172A]"
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 45%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 40%, rgba(37,99,235,0.05), transparent 70%)",
+        }}
+      />
+
+      {[
+        { top: "22%", left: "16%", color: "#2563EB" },
+        { top: "70%", left: "76%", color: "#0D9488" },
+        { top: "78%", left: "20%", color: "#4338CA" },
+        { top: "16%", left: "82%", color: "#0D9488" },
+      ].map((p, i) => (
+        <span
+          key={i}
+          className="pointer-events-none absolute h-1.5 w-1.5 rounded-full"
+          style={{ top: p.top, left: p.left, backgroundColor: p.color }}
+        >
+          <span
+            ref={(el) => (pingRefs.current[i] = el)}
+            className="absolute -inset-1.5 rounded-full border"
+            style={{ borderColor: p.color }}
+          />
+        </span>
+      ))}
+
+      <div className="relative z-10 flex max-w-3xl flex-col items-center px-6 text-center">
+        <div className="rq-eyebrow mb-5 flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.28em] text-[#64748B]">
+          <span className="relative flex h-1.5 w-1.5">
+            <span
+              className="rq-status-dot h-1.5 w-1.5 rounded-full bg-[#2563EB]"
+              style={{ boxShadow: "0 0 0 0 rgba(37,99,235,0.5)" }}
+            />
+          </span>
+          Live Coordination Network
+        </div>
+
+        <h1 className="rq-headline text-[2.2rem] font-bold leading-[1.05] tracking-tight text-[#0F172A] sm:text-[3.1rem] md:text-[3.9rem]">
+          Welcome to{" "}
+          <span className="bg-linear-to-r from-[#2563EB] via-[#0D9488] to-[#4338CA] bg-clip-text text-transparent">
+            ResQGrid
+          </span>
+        </h1>
+
+        <p className="rq-subtitle mt-5 max-w-lg text-[1rem] leading-relaxed text-[#475569]">
+          One grid connecting the people who need help, the teams who respond,
+          and the agencies who coordinate it — in real time.
+        </p>
+
+        <div className="mt-12 flex flex-wrap justify-center gap-5">
+          {PORTALS.map(({ key, label, desc, to, Icon, accent, ring }) => (
+            <Link
+              key={key}
+              to={to}
+              className="rq-portal group relative w-49 rounded-lg border border-[#E2E8F0] bg-white px-5 pb-5 pt-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1"
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.boxShadow = `0 14px 28px -16px ${accent}`)
+              }
+              onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "")}
+            >
+              <span
+                className="absolute left-0 top-0 h-0.5 w-full origin-left scale-x-0 rounded-t-lg transition-transform duration-300 group-hover:scale-x-100"
+                style={{ backgroundColor: accent }}
+              />
+              <span
+                className="mb-4 flex h-9 w-9 items-center justify-center rounded-md"
+                style={{ backgroundColor: ring, color: accent }}
+              >
+                <Icon size={18} strokeWidth={2} />
+              </span>
+
+              <div className="text-[1rem] font-semibold tracking-tight text-[#0F172A]">
+                {label}
+              </div>
+              <div className="mt-1.5 text-[0.78rem] leading-snug text-[#64748B]">
+                {desc}
+              </div>
+
+              <div
+                className="mt-4 flex items-center gap-1.5 font-mono text-[0.68rem] font-medium uppercase tracking-widest"
+                style={{ color: accent }}
+              >
+                Enter
+                <ArrowRight
+                  size={11}
+                  className="transition-transform duration-300 group-hover:translate-x-1"
+                />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <footer className="absolute bottom-6 left-0 right-0 text-center font-mono text-[11px] tracking-[0.12em] text-[#94A3B8]">
+        RESQGRID // COORDINATED RESPONSE, ANY SCALE
+      </footer>
     </div>
   );
+};
+
+const AgencyRouteProtector = () => {
+  const { isPending, isAuthenticated } = useAgencyAuth();
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#0D9488] bg-teal-50">
+            <span className="text-2xl font-bold">🇮🇳</span>
+          </div>
+          <h1 className="text-xl font-semibold text-slate-800">
+            Verifying Authentication
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Please wait while we verify your agency credentials.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#0D9488]"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  return <Outlet />;
 };
 
 const useGeolocation = (options = {}) => {
@@ -178,13 +598,8 @@ const UserSOSInbox = () => {
     fetchLocation();
   }, [fetchLocation]);
 
-  const {
-    userSocket,
-    alertStatus,
-    dispatchData,
-    setAlertStatus,
-    setDispatchData,
-  } = useUserSocket();
+  const { alertStatus, dispatchData, setAlertStatus, setDispatchData } =
+    useUserSocket();
 
   const { alert_status, sosId, isPending } = useGetAlertStatus();
   const { dispatch_data, isPending: fetching } = useGetDispatchData(sosId);
@@ -199,73 +614,168 @@ const UserSOSInbox = () => {
     if (!fetching && dispatch_data?.length > 0) setDispatchData(dispatch_data);
   }, [dispatch_data, setDispatchData, fetching]);
 
-  if (isPending || fetching) return <h1>Loading...</h1>;
+  if (isPending || fetching) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+      </div>
+    );
+  }
 
-  if (!alert_status || alert_status?.length === 0)
-    return <h1>No Active SOS triggered at the moment</h1>;
+  if (!alert_status || alert_status?.length === 0) {
+    return (
+      <div className="rounded-4xl border-2 border-dashed border-slate-200 bg-white/60 p-16 text-center backdrop-blur-sm max-w-4xl mx-auto">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-inner">
+          <Shield size={32} />
+        </div>
+        <h3 className="text-xl font-extrabold text-slate-800">No Active SOS</h3>
+        <p className="mt-2 text-sm font-medium text-slate-500">
+          You have no active emergency alerts currently in transit.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div>
-        <h3>SOS ID : {alertStatus.sos_id}</h3>
-        <p>Triggered At: {alertStatus.triggered_at}</p>
-        <h3>Status: {alertStatus.status}</h3>
-        <p>Disaster Type: {alertStatus.disaster_type}</p>
-        <p>Provided Description: {alertStatus.description}</p>
-      </div>
-      <div>
-        {dispatchData.map((dispatch) => {
-          return (
-            <div>
-              <h3>Dispatch Id: {dispatch.dispatch_id}</h3>
-              <p>Agency Name: {dispatch.agency_name}</p>
-              <p>Unit Name: {dispatch.unit_name}</p>
-              <p>Unit Type: {dispatch.unit_type}</p>
-              <h3>Status: {dispatch.status}</h3>
-              <p>Assigned at: {dispatch.assigned_at}</p>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto w-full">
+      <div className="overflow-hidden rounded-4xl border border-slate-200 bg-white/80 shadow-sm backdrop-blur-xl">
+        <div className="flex flex-col justify-between gap-4 border-b border-slate-100 bg-red-50/40 p-6 sm:flex-row sm:items-start">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <AlertTriangle size={24} />
             </div>
-          );
-        })}
-      </div>
-      <div>
-        {coordinates.latitude !== null && coordinates.longitude !== null ? (
-          <MapContainer
-            center={[coordinates.latitude, coordinates.longitude]}
-            zoom={13}
-            style={{ height: "500px", width: "100%" }}
-          >
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {dispatchData.map((dispatch) => {
-              const [longitude, latitude] = dispatch.unit_location.coordinates;
-              return (
-                <Marker
-                  key={dispatch.dispatch_id}
-                  position={[latitude, longitude]}
-                >
-                  <Popup>
-                    <strong>{dispatch.unit_type}</strong>
-                    <br />
-                    Status: {dispatch.status}
-                    <br />
-                    Unit Name: {dispatch.unit_name}
-                  </Popup>
-                </Marker>
-              );
-            })}
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg font-extrabold tracking-tight text-slate-900">
+                  SOS #{alertStatus?.sos_id}
+                </h3>
+                <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                  {alertStatus?.disaster_type}
+                </span>
+              </div>
+              <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                <Clock size={13} className="text-slate-400" /> Triggered:{" "}
+                {alertStatus?.triggered_at}
+              </p>
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full border border-red-200 bg-red-100 px-3.5 py-1 text-[11px] font-black uppercase tracking-widest text-red-700">
+            {alertStatus?.status}
+          </span>
+        </div>
 
-            <Marker position={[coordinates.latitude, coordinates.longitude]}>
-              <Popup>
-                <strong>Your Location</strong>
-                <br />
-                <p>SOS ID: {alertStatus.sos_id}</p>
-              </Popup>
-            </Marker>
-          </MapContainer>
+        <div className="p-6">
+          <p className="text-sm font-medium text-slate-600">
+            {alertStatus?.description || "No description provided."}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <Truck size={20} className="text-[#2563EB]" /> Responding Dispatches (
+          {dispatchData.length})
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          {dispatchData.map((dispatch) => (
+            <div
+              key={dispatch.dispatch_id}
+              className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur-xl"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    ID: {dispatch.dispatch_id}
+                  </span>
+                  <h4 className="text-base font-bold text-slate-900 mt-0.5">
+                    {dispatch.unit_name}
+                  </h4>
+                  <p className="text-xs font-semibold text-slate-500">
+                    {dispatch.agency_name}
+                  </p>
+                </div>
+                <span className="rounded-full bg-blue-50 border border-blue-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                  {dispatch.status}
+                </span>
+              </div>
+              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
+                <span className="rounded-md bg-slate-100 px-2 py-0.5 font-bold uppercase text-slate-700">
+                  {dispatch.unit_type}
+                </span>
+                <span>Assigned: {dispatch.assigned_at}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <MapPin size={18} className="text-[#2563EB]" /> Live Response Map
+          </h3>
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+          </span>
+        </div>
+
+        {coordinates.latitude !== null && coordinates.longitude !== null ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <MapContainer
+              center={[coordinates.latitude, coordinates.longitude]}
+              zoom={13}
+              style={{ height: "450px", width: "100%", zIndex: 0 }}
+            >
+              <TileLayer
+                attribution="&copy; OpenStreetMap contributors"
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {dispatchData.map((dispatch) => {
+                const [lng, lat] = dispatch.unit_location.coordinates;
+                return (
+                  <Marker
+                    key={dispatch.dispatch_id}
+                    position={[lat, lng]}
+                    icon={unitIcon}
+                  >
+                    <Popup>
+                      <div className="p-1 text-center">
+                        <strong className="block text-sm font-bold text-slate-900">
+                          {dispatch.unit_name}
+                        </strong>
+                        <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                          {dispatch.unit_type}
+                        </span>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Status: {dispatch.status}
+                        </p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })}
+              <Marker
+                position={[coordinates.latitude, coordinates.longitude]}
+                icon={userLocationIcon}
+              >
+                <Popup>
+                  <div className="p-1 text-center">
+                    <strong className="block text-sm font-bold text-slate-900">
+                      Your Reported Location
+                    </strong>
+                    <p className="text-xs text-slate-500">
+                      SOS ID: {alertStatus?.sos_id}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            </MapContainer>
+          </div>
         ) : (
-          ""
+          <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-50 text-sm font-medium text-slate-500">
+            Locating coordinates for map tracking...
+          </div>
         )}
       </div>
     </div>
@@ -273,11 +783,25 @@ const UserSOSInbox = () => {
 };
 
 const UserInbox = () => {
+  const inboxRef = useRef(null);
+  useEffect(() => {
+    gsap.fromTo(
+      inboxRef.current,
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.5 },
+    );
+  }, []);
   return (
-    <div>
-      <div>
-        <h1>Inbox</h1>
-      </div>
+    <div
+      ref={inboxRef}
+      className="rounded-xl border border-[#E2E8F0] bg-white p-8 shadow-sm"
+    >
+      <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">
+        Inbox
+      </h1>
+      <p className="mt-2 text-sm text-[#64748B]">
+        View incoming messages and alerts from dispatchers.
+      </p>
     </div>
   );
 };
@@ -303,11 +827,8 @@ const useSosAlerts = () => {
 const AgencySosInbox = () => {
   const { agencySocket, sosAlerts, setSosAlerts } = useAgencySocket();
   const { sos_alerts, fetching } = useSosAlerts();
-
   const { agencyUnits, isPending } = useGetAgencyUnits();
-
   const [claimingUnitId, setClaimingUnitId] = useState(null);
-
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -357,7 +878,11 @@ const AgencySosInbox = () => {
   };
 
   if (isPending || fetching) {
-    return <h1>Loading...</h1>;
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0D9488]"></span>
+      </div>
+    );
   }
 
   const availableUnits = agencyUnits.filter(
@@ -365,56 +890,141 @@ const AgencySosInbox = () => {
   );
 
   return (
-    <div>
-      <h1>SOS Alerts</h1>
-      {sosAlerts.length === 0 ? (
-        <p>No active SOS alerts in your area at the moment</p>
-      ) : (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto w-full">
+      <div className="flex flex-col justify-between gap-4 rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:flex-row sm:items-center">
         <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[#0F172A]">
+            <Siren className="text-[#0D9488]" /> SOS Alerts
+          </h1>
+          <p className="mt-1 text-[0.9rem] text-[#64748B]">
+            Live emergency alerts matched to your agency's capabilities.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 sm:self-auto">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          </span>
+          {sosAlerts.length} Active
+        </span>
+      </div>
+
+      {sosAlerts.length === 0 ? (
+        <div className="rounded-4xl border-2 border-dashed border-slate-200 bg-white/50 p-16 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner">
+            <Siren size={32} />
+          </div>
+          <h3 className="text-xl font-extrabold text-slate-700">All Clear</h3>
+          <p className="mt-2 text-sm font-medium text-slate-500">
+            No active SOS alerts in your area at the moment.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-5">
           {sosAlerts.map((alert) => (
-            <div key={alert.sos_id}>
-              <p>
-                {alert.sos_id} - {alert.disaster_type}
-              </p>
-              <p>{(alert.distance_meters / 1000).toFixed(2)} km away</p>
-              <p>{alert.description || "No description provided."}</p>
-              <div>
-                Matched Roles:{" "}
-                {(alert.matched_capabilities || []).map((tag) => (
-                  <p>{tag}</p>
-                ))}
-              </div>
-              <div>
-                <h1>STATUS: {alert.status}</h1>
-              </div>
-              {(alert.matched_capabilities || []).map((tag) => {
-                const matching_units = availableUnits.filter(
-                  (unit) => unit.unit_type === tag,
-                );
-                return (
+            <div
+              key={alert.sos_id}
+              className="overflow-hidden rounded-4xl border border-slate-200 bg-white/80 shadow-sm backdrop-blur-xl"
+            >
+              <div className="flex flex-col justify-between gap-4 border-b border-slate-100 bg-red-50/40 p-6 sm:flex-row sm:items-start">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                    <AlertTriangle size={24} />
+                  </div>
                   <div>
-                    {matching_units.map((unit) => (
-                      <div key={unit.unit_id}>
-                        <p>{unit.unit_name}</p>
-                        <p>{unit.unit_id}</p>
-                        <button
-                          disabled={claimingUnitId === unit.unit_id}
-                          onClick={() =>
-                            handleClaimSos({
-                              unit_id: unit.unit_id,
-                              sos_id: alert.sos_id,
-                              unit_type: unit.unit_type,
-                              agency_id: unit.agency_id,
-                            })
-                          }
-                        >
-                          Claim SOS
-                        </button>
-                      </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-extrabold tracking-tight text-slate-900">
+                        {alert.sos_id}
+                      </h3>
+                      <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        {alert.disaster_type}
+                      </span>
+                    </div>
+                    <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-500">
+                      <MapPin size={14} className="text-[#0D9488]" />
+                      {(alert.distance_meters / 1000).toFixed(2)} km away
+                    </p>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full border border-orange-200 bg-orange-100 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-orange-700">
+                  {alert.status}
+                </span>
+              </div>
+
+              <div className="space-y-4 p-6">
+                <p className="text-sm font-medium text-slate-600">
+                  {alert.description || "No description provided."}
+                </p>
+
+                <div>
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    Matched Roles
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(alert.matched_capabilities || []).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        {tag}
+                      </span>
                     ))}
                   </div>
-                );
-              })}
+                </div>
+
+                {(alert.matched_capabilities || []).map((tag) => {
+                  const matching_units = availableUnits.filter(
+                    (unit) => unit.unit_type === tag,
+                  );
+                  if (matching_units.length === 0) return null;
+                  return (
+                    <div
+                      key={tag}
+                      className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4"
+                    >
+                      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Available {tag} Units
+                      </p>
+                      <div className="space-y-2">
+                        {matching_units.map((unit) => (
+                          <div
+                            key={unit.unit_id}
+                            className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-3 shadow-sm"
+                          >
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">
+                                {unit.unit_name}
+                              </p>
+                              <p className="font-mono text-[11px] font-semibold text-slate-500">
+                                {unit.unit_id}
+                              </p>
+                            </div>
+                            <button
+                              disabled={claimingUnitId === unit.unit_id}
+                              onClick={() =>
+                                handleClaimSos({
+                                  unit_id: unit.unit_id,
+                                  sos_id: alert.sos_id,
+                                  unit_type: unit.unit_type,
+                                  agency_id: unit.agency_id,
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0B7C72] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {claimingUnitId === unit.unit_id && (
+                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                              )}
+                              {claimingUnitId === unit.unit_id
+                                ? "Claiming..."
+                                : "Claim SOS"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
@@ -448,44 +1058,215 @@ const useLogoutUser = () => {
 };
 const UserLayout = () => {
   const { logoutUser, isPending } = useLogoutUser();
+  const layoutRef = useRef(null);
+
   const logoutHandler = () => {
     logoutUser();
   };
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".ul-header",
+        { opacity: 0, y: -20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+      );
+      gsap.fromTo(
+        ".ul-nav-item",
+        { opacity: 0, x: -10 },
+        {
+          opacity: 1,
+          x: 0,
+          duration: 0.4,
+          stagger: 0.05,
+          ease: "power2.out",
+          delay: 0.2,
+        },
+      );
+      gsap.fromTo(
+        ".ul-content",
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", delay: 0.3 },
+      );
+    }, layoutRef);
+    return () => ctx.revert();
+  }, []);
   return (
     <UserSocketProvider>
-      <header>
-        header
-        <button
-          disabled={isPending}
-          onClick={logoutHandler}
-          className="btn btn-primary"
-        >
-          Logout
-        </button>
-      </header>
-      <main>
-        <Outlet />
-      </main>
-      <footer>footer</footer>
+      <div
+        ref={layoutRef}
+        className="relative z-0 min-h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A]"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+            maskImage:
+              "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(37,99,235,0.04), transparent 70%)",
+          }}
+        />
+
+        <header className="ul-header relative z-10 border-b border-[#E2E8F0] bg-white shadow-sm">
+          <div className="bg-[#0F172A]">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
+              <span>Citizen Emergency Portal</span>
+              <span>Official Platform</span>
+            </div>
+          </div>
+
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <div>
+              <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: USER_ACCENT }}
+                />
+                Citizen Portal
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-[#0F172A]">
+                ResQGrid <span style={{ color: USER_ACCENT }}>Citizen</span>
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {[
+                { to: "/user/home", label: "Home", Icon: HomeIcon },
+                {
+                  to: "/user/sosForm",
+                  label: "Trigger SOS",
+                  Icon: AlertTriangle,
+                },
+                { to: "/user/sosInbox", label: "My Alerts", Icon: Siren },
+                { to: "/user/inbox", label: "Inbox", Icon: Inbox },
+              ].map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `ul-nav-item flex items-center gap-2 rounded-lg px-4 py-2.5 text-[0.88rem] font-semibold transition-all ${
+                      isActive
+                        ? "bg-[#2563EB] text-white shadow-md shadow-blue-900/10"
+                        : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                    }`
+                  }
+                >
+                  <Icon size={16} strokeWidth={2.5} />
+                  {label}
+                </NavLink>
+              ))}
+              <button
+                onClick={logoutHandler}
+                disabled={isPending}
+                className="ul-nav-item ml-2 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-[0.88rem] font-semibold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50"
+              >
+                {isPending ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          </nav>
+        </header>
+
+        <main className="ul-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
+          <Outlet />
+        </main>
+
+        <footer className="relative z-10 border-t border-[#E2E8F0] bg-white">
+          <div className="mx-auto max-w-7xl px-6 py-5 text-center text-sm text-[#64748B]">
+            © ResQGrid Disaster Management Platform. All Rights Reserved.
+          </div>
+        </footer>
+      </div>
     </UserSocketProvider>
   );
 };
 
 const UserHome = () => {
   const { user, isPending } = useUserAuth();
-  if (isPending) return <h1>Loading...</h1>;
+  const homeRef = useRef(null);
+
+  useEffect(() => {
+    if (!isPending) {
+      let ctx = gsap.context(() => {
+        gsap.fromTo(
+          ".user-card",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" },
+        );
+      }, homeRef);
+      return () => ctx.revert();
+    }
+  }, [isPending]);
+
+  if (isPending)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+      </div>
+    );
   return (
-    <div>
-      <p>Welcome {user.name}</p>
-      <p>
-        <NavLink to="/user/sosForm">Trigger SOS</NavLink>
-      </p>
-      <p>
-        <NavLink to="/user/sosInbox">User SOS Inbox</NavLink>
-      </p>
-      <p>
-        <NavLink to="/user/inbox">User Inbox</NavLink>
-      </p>
+    <div ref={homeRef} className="space-y-6">
+      <div className="user-card rounded-xl border border-[#E2E8F0] bg-white p-8 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-[0.75rem] font-bold text-blue-700">
+            <User size={14} /> Identity Verified
+          </div>
+        </div>
+
+        <h1 className="text-3xl font-bold tracking-tight text-[#0F172A]">
+          Welcome, {user?.name}
+        </h1>
+        <p className="mt-2 text-sm text-[#64748B]">
+          You are connected to the ResQGrid emergency network.
+        </p>
+
+        <div className="mt-8 grid gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-red-100 bg-red-50/50 p-6 shadow-sm transition hover:border-red-200 hover:shadow-md">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <AlertTriangle size={24} />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Need Immediate Help?
+            </h2>
+            <p className="mt-1 text-sm text-slate-600 mb-6">
+              Dispatch an emergency response team directly to your location.
+            </p>
+            <Link
+              to="/user/sosForm"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 font-bold text-white transition hover:bg-red-700 shadow-lg shadow-red-600/20"
+            >
+              Trigger Emergency SOS
+            </Link>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <Siren size={24} />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">
+              Your Active Alerts
+            </h2>
+            <p className="mt-1 text-sm text-slate-600 mb-6">
+              Check the status of your previously reported emergencies.
+            </p>
+            <Link
+              to="/user/sosInbox"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            >
+              View Active Alerts
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -563,77 +1344,175 @@ const UserSOSForm = () => {
     }
   }, [coordinates, setValue]);
 
-  if (fetching) return <h1>Loading...</h1>;
-  if (alert_status?.length > 0) {
-    return <h1>You already have an active SOS triggered</h1>;
+  if (fetching) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+      </div>
+    );
+  }
+  if (alert_status?.length > 0 || active) {
+    return (
+      <div className="rounded-4xl border border-amber-200 bg-amber-50/60 p-12 text-center max-w-xl mx-auto shadow-sm backdrop-blur-xl">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+          <AlertCircle size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">
+          Active Emergency Pending
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          You already have an active SOS broadcast in progress. Track the
+          response progress in your alert portal.
+        </p>
+        <Link
+          to="/user/sosInbox"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"
+        >
+          View Alert Progress
+        </Link>
+      </div>
+    );
   }
 
-  if (active) return <h1>You already have an active sos triggered</h1>;
-
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Disaster Type</span>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-2xl mx-auto">
+      <div className="mb-6 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+          <Siren size={32} />
+        </div>
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+          Trigger Emergency SOS
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Provide accurate details to dispatch the correct agency to your
+          location immediately.
+        </p>
+      </div>
+
+      <div className="rounded-4xl border border-slate-200/80 bg-white/80 p-8 shadow-xl backdrop-blur-xl">
+        <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+              <AlertTriangle size={14} className="text-[#2563EB]" /> Emergency
+              Type
+            </label>
             <select
-              className="select select-primary"
+              defaultValue=""
+              disabled={isPending}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/20 cursor-pointer"
               {...register("disaster_type", {
-                required: "This field is required!",
+                required: "Select an emergency type",
               })}
             >
-              <option value="flood">Flood</option>
-              <option value="fire">Fire</option>
-              <option value="earthquake">Earthquake</option>
-              <option value="cyclone">Cyclone</option>
-              <option value="medical_emergency">Medical Emergency</option>
-              <option value="crowd_hazard">Crowd Hazard</option>
+              <option value="" disabled>
+                Select emergency type...
+              </option>
+              {DISASTER_TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
-          </label>
-          {errors?.disaster_type ? <p>{errors.disaster_type.message}</p> : ""}
-        </div>
-        <div>
-          <label>Location Coordinates</label>
-          <input
-            type="text"
+            {errors?.disaster_type && (
+              <p className="mt-1.5 text-xs font-semibold text-red-600">
+                {errors.disaster_type.message}
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <h3 className="mb-4 text-sm font-bold text-slate-900 flex items-center gap-2">
+              <MapPin size={16} className="text-[#2563EB]" /> Exact Location
+              Coordinates
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <input
+                  type="text"
+                  disabled={isPending}
+                  placeholder="Latitude"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+                  {...register("latitude", {
+                    required: "Required",
+                  })}
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  disabled={isPending}
+                  placeholder="Longitude"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
+                  {...register("longitude", {
+                    required: "Required",
+                  })}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={fetchLocation}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#2563EB] px-4 py-2 text-xs font-bold text-[#2563EB] transition hover:bg-blue-50 disabled:opacity-60"
+              >
+                <Crosshair size={14} />{" "}
+                {loading ? "Detecting GPS..." : "Auto-Detect Location"}
+              </button>
+              {error && (
+                <span className="text-xs font-semibold text-red-600">
+                  {error}
+                </span>
+              )}
+              {(errors?.latitude || errors?.longitude) && !error && (
+                <span className="text-xs font-semibold text-red-600">
+                  Please provide coordinates
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+            <input
+              id="is_victim"
+              type="checkbox"
+              className="h-5 w-5 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
+              {...register("is_victim")}
+            />
+            <label
+              htmlFor="is_victim"
+              className="text-sm font-semibold text-slate-800 cursor-pointer"
+            >
+              I am the victim (Check if you are personally in danger)
+            </label>
+          </div>
+
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+              <MessageSquare size={14} className="text-[#2563EB]" /> Description
+              (Optional)
+            </label>
+            <textarea
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium outline-none transition focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/20 min-h-25 resize-none"
+              placeholder="Provide any additional details about the situation..."
+              {...register("description")}
+            />
+          </div>
+
+          <button
+            type="submit"
             disabled={isPending}
-            placeholder="latitude"
-            {...register("latitude", {
-              required: "Both the fields are required!",
-            })}
-          />
-          <input
-            type="text"
-            disabled={isPending}
-            placeholder="longitude"
-            {...register("longitude", {
-              required: "Both the fields are required!",
-            })}
-          />
-          <button type="button" disabled={loading} onClick={fetchLocation}>
-            {loading ? "Fetching..." : "Get Location"}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-4 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700 hover:shadow-red-600/40 disabled:opacity-70"
+          >
+            {isPending && (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            <Radio size={18} />{" "}
+            {isPending ? "Transmitting..." : "BROADCAST SOS"}
           </button>
-          {error ? <p>{error}</p> : ""}
-          {errors?.latitude || errors?.longitude ? (
-            <p>{errors?.latitude?.message || errors?.longitude?.message}</p>
-          ) : (
-            ""
-          )}
-        </div>
-        <div>
-          <label htmlFor="is_victim">Are you the victim?</label>
-          <input id="is_victim" type="checkbox" {...register("is_victim")} />
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Description (Optional)</span>
-            <input type="text" {...register("description")} />
-          </label>
-        </div>
-        <div>
-          <button className="btn btn-danger">Trigger SOS</button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };
@@ -687,16 +1566,21 @@ const useUserAuth = () => {
 const UserRouteProtector = () => {
   const { isPending, isAuthenticated } = useUserAuth();
   if (isPending) {
-    return <h1>Checking authentication...</h1>;
-  }
-  if (!isAuthenticated) return <Navigate to="/" replace />;
-  return <Outlet />;
-};
-
-const AgencyRouteProtector = () => {
-  const { isPending, isAuthenticated } = useAgencyAuth();
-  if (isPending) {
-    return <h1>Checking authentication...</h1>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#2563EB] bg-blue-50">
+            <span className="text-2xl font-bold">🇮🇳</span>
+          </div>
+          <h1 className="text-xl font-semibold text-slate-800">
+            Verifying Citizen Portal
+          </h1>
+          <div className="mt-6 flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#2563EB]"></div>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (!isAuthenticated) return <Navigate to="/" replace />;
   return <Outlet />;
@@ -750,84 +1634,89 @@ const VerifyUserCredentials = ({
     });
   };
   return (
-    <>
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
       <div>
-        <form onSubmit={handleSubmit(submitHandler)}>
-          <div>
-            <label className="floating-label">
-              <span>Name</span>
-              <input
-                type="text"
-                disabled={isPending}
-                {...register("full_name", {
-                  required: "This field is required",
-                })}
-              />
-            </label>
-            {errors?.full_name ? <p>{errors?.full_name.message}</p> : ""}
-          </div>
-          <div>
-            <label className="floating-label">
-              <span>Date of Birth</span>
-              <input
-                type="date"
-                disabled={isPending}
-                {...register("dob", {
-                  required: "This field is required",
-                })}
-              />
-            </label>
-            {errors?.dob ? <p>{errors?.dob.message}</p> : ""}
-          </div>
-          <div>
-            <label className="floating-label">
-              <span>Aadhaar No.</span>
-              <input
-                type="text"
-                disabled={isPending}
-                {...register("aadhaar_no", {
-                  required: "This field is required",
-                  maxLength: {
-                    value: 12,
-                    message: "Aadhaar number must be exactly 12 digits",
-                  },
-                  minLength: {
-                    value: 12,
-                    message: "Aadhaar number must be exactly 12 digits",
-                  },
-                })}
-              />
-            </label>
-            {errors?.aadhaar_no ? <p>{errors?.aadhaar_no.message}</p> : ""}
-          </div>
-          <div>
-            <label className="floating-label">
-              <span>Mobile No.</span>
-              <input
-                type="text"
-                disabled={isPending}
-                {...register("mobile_no", {
-                  required: "This field is required",
-                  maxLength: {
-                    value: 10,
-                    message: "Mobile number must be exactly 10 digits",
-                  },
-                  minLength: {
-                    value: 10,
-                    message: "Mobile number must be exactly 10 digits",
-                  },
-                })}
-              />
-            </label>
-            {errors?.mobile_no ? <p>{errors?.mobile_no.message}</p> : ""}
-          </div>
-          <div>
-            <button className="btn btn-primary uppercase">next</button>
-          </div>
-        </form>
+        <FieldLabel>Full Name</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="Enter full name"
+          {...register("full_name", {
+            required: "This field is required",
+          })}
+        />
+        <FieldError message={errors?.full_name?.message} />
       </div>
-      <Link to="/user/login">Already registered? then login...</Link>
-    </>
+      <div>
+        <FieldLabel>Date of Birth</FieldLabel>
+        <input
+          type="date"
+          disabled={isPending}
+          className={userInputClass}
+          {...register("dob", {
+            required: "This field is required",
+          })}
+        />
+        <FieldError message={errors?.dob?.message} />
+      </div>
+      <div>
+        <FieldLabel>Aadhaar No.</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="12-digit number"
+          {...register("aadhaar_no", {
+            required: "This field is required",
+            maxLength: {
+              value: 12,
+              message: "Aadhaar number must be exactly 12 digits",
+            },
+            minLength: {
+              value: 12,
+              message: "Aadhaar number must be exactly 12 digits",
+            },
+          })}
+        />
+        <FieldError message={errors?.aadhaar_no?.message} />
+      </div>
+      <div>
+        <FieldLabel>Mobile No.</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="10-digit number"
+          {...register("mobile_no", {
+            required: "This field is required",
+            maxLength: {
+              value: 10,
+              message: "Mobile number must be exactly 10 digits",
+            },
+            minLength: {
+              value: 10,
+              message: "Mobile number must be exactly 10 digits",
+            },
+          })}
+        />
+        <FieldError message={errors?.mobile_no?.message} />
+      </div>
+
+      <UserPrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Checking..." : "Continue"}
+      </UserPrimaryButton>
+
+      <p className="text-center text-[0.82rem] text-[#64748B]">
+        Already registered?{" "}
+        <Link
+          to="/user/login"
+          className="font-medium text-[#2563EB] hover:underline"
+        >
+          Log in
+        </Link>
+      </p>
+    </form>
   );
 };
 
@@ -946,85 +1835,69 @@ export const UserSMSOtp = ({ setStep, maskedPhone, aadhaar_no }) => {
   };
 
   return (
-    <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-200">
-      <div className="card-body">
-        <h2 className="card-title text-xl font-bold justify-center">
-          Verify User
-        </h2>
-        <p className="text-sm text-base-content/70 text-center">
-          Enter the 6-digit code sent to registered mobile{" "}
-          <span className="font-semibold text-primary">{maskedPhone}</span>
-        </p>
+    <div className="space-y-4">
+      <p className="text-center text-[0.85rem] text-[#64748B]">
+        Enter the 6-digit code sent to{" "}
+        <span className="font-semibold text-[#2563EB]">{maskedPhone}</span>
+      </p>
 
-        {serverError && (
-          <div role="alert" className="alert alert-error text-sm py-2 mt-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="stroke-current shrink-0 h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span>{serverError}</span>
-          </div>
+      {serverError && (
+        <div className="rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-2.5 text-[0.82rem] font-medium text-[#DC2626]">
+          {serverError}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onOtpSubmit)} className="space-y-4">
+        <div className="flex justify-center gap-2.5">
+          {otpValues.map((digit, idx) => (
+            <input
+              key={idx}
+              ref={(el) => (inputRefs.current[idx] = el)}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(idx, e)}
+              onKeyDown={(e) => handleKeyDown(idx, e)}
+              onPaste={handlePaste}
+              className={`h-12 w-11 rounded-lg border text-center text-lg font-semibold outline-none transition focus:ring-2 focus:ring-[#2563EB26] ${
+                errors.otp || serverError
+                  ? "border-[#DC2626]"
+                  : "border-[#E2E8F0] focus:border-[#2563EB]"
+              }`}
+              autoFocus={idx === 0}
+            />
+          ))}
+        </div>
+
+        {errors.otp && (
+          <p className="text-center text-[0.75rem] font-medium text-[#DC2626]">
+            {errors.otp.message}
+          </p>
         )}
 
-        <form onSubmit={handleSubmit(onOtpSubmit)} className="mt-4 space-y-4">
-          <div className="flex justify-center gap-2">
-            {otpValues.map((digit, idx) => (
-              <input
-                key={idx}
-                ref={(el) => (inputRefs.current[idx] = el)}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleChange(idx, e)}
-                onKeyDown={(e) => handleKeyDown(idx, e)}
-                onPaste={handlePaste}
-                className={`input input-bordered w-12 h-14 text-center text-xl font-bold rounded-lg focus:input-primary ${
-                  errors.otp || serverError ? "input-error" : ""
-                }`}
-                autoFocus={idx === 0}
-              />
-            ))}
-          </div>
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            className="text-[0.85rem] font-medium text-[#64748B] transition hover:text-[#0F172A]"
+            onClick={() => setStep(1)}
+            disabled={isPending}
+          >
+            ← Back
+          </button>
 
-          {errors.otp && (
-            <p className="text-error text-xs text-center font-medium">
-              {errors.otp.message}
-            </p>
-          )}
-
-          <div className="card-actions justify-between items-center pt-2">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setStep(2)}
-              disabled={isPending}
-            >
-              ← Back
-            </button>
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isPending}
-            >
-              {isPending && (
-                <span className="loading loading-spinner loading-sm"></span>
-              )}
-              {isPending ? "Verifying..." : "Verify OTP"}
-            </button>
-          </div>
-        </form>
-      </div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] px-5 py-2.5 text-[0.88rem] font-semibold text-white transition hover:bg-[#1D4ED8] disabled:opacity-60"
+          >
+            {isPending && (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            {isPending ? "Verifying..." : "Verify OTP"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
@@ -1054,6 +1927,8 @@ const UserRegistration = ({ setStep, user }) => {
   const { registerUser, isPending } = useRegisterUser();
   const navigate = useNavigate();
   const { coordinates, loading, fetchLocation } = useGeolocation();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     fetchLocation();
@@ -1068,7 +1943,7 @@ const UserRegistration = ({ setStep, user }) => {
 
   const submitHandler = (data) => {
     if (!coordinates?.latitude || !coordinates?.longitude) {
-      toast.error("Please wait for your location to be fetched.");
+      toast.error("Please wait for your GPS coordinates to be acquired.");
       return;
     }
     const payload = {
@@ -1095,113 +1970,140 @@ const UserRegistration = ({ setStep, user }) => {
     });
   };
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Detailed Address</span>
-            <input
-              type="text"
-              disabled={isPending}
-              {...register("address", {
-                required: "This field is required",
-                minLength: {
-                  value: 15,
-                  message: "Minimum of 15 characters is required",
-                },
-              })}
-            />
-          </label>
-          {errors?.address ? <p>{errors.address.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Home State</span>
-            <input
-              type="text"
-              disabled={isPending}
-              {...register("state", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.state ? <p>{errors.state.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Age</span>
-            <input
-              type="number"
-              disabled={isPending}
-              {...register("age", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.age ? <p>{errors.age.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Email</span>
-            <input
-              type="text"
-              disabled={isPending}
-              {...register("email", {
-                required: "This field is required",
-                pattern: {
-                  value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-                  message: "Please enter a valid email address",
-                },
-              })}
-            />
-          </label>
-          {errors?.email ? <p>{errors.email.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Password</span>
-            <input
-              type="password"
-              disabled={isPending}
-              {...register("password", {
-                required: "This field is required!",
-                pattern: {
-                  value:
-                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                  message:
-                    "Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character",
-                },
-              })}
-            />
-          </label>
-          {errors?.password ? <p>{errors.password.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Confirm Password</span>
-            <input
-              type="password"
-              disabled={isPending}
-              {...register("confirmPassword", {
-                required: "This field is required!",
-                validate: (value) =>
-                  value === getValues("password") || "Passwords don't match",
-              })}
-            />
-          </label>
-          {errors?.confirmPassword ? (
-            <p>{errors.confirmPassword.message}</p>
-          ) : (
-            ""
-          )}
-        </div>
-        <div>
-          <button disabled={isPending} className="btn btn-primary uppercase">
-            Register
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+      <div>
+        <FieldLabel>Detailed Address</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="Enter address"
+          {...register("address", {
+            required: "This field is required",
+            minLength: {
+              value: 15,
+              message: "Minimum of 15 characters is required",
+            },
+          })}
+        />
+        <FieldError message={errors?.address?.message} />
+      </div>
+      <div>
+        <FieldLabel>Home State</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="State"
+          {...register("state", {
+            required: "This field is required!",
+          })}
+        />
+        <FieldError message={errors?.state?.message} />
+      </div>
+      <div>
+        <FieldLabel>Age</FieldLabel>
+        <input
+          type="number"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="Age"
+          {...register("age", {
+            required: "This field is required!",
+          })}
+        />
+        <FieldError message={errors?.age?.message} />
+      </div>
+      <div>
+        <FieldLabel>Email</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={userInputClass}
+          placeholder="you@email.com"
+          {...register("email", {
+            required: "This field is required",
+            pattern: {
+              value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+              message: "Please enter a valid email address",
+            },
+          })}
+        />
+        <FieldError message={errors?.email?.message} />
+      </div>
+      <div>
+        <FieldLabel>Password</FieldLabel>
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            disabled={isPending}
+            className={`${userInputClass} pr-10`}
+            placeholder="Create a strong password"
+            {...register("password", {
+              required: "This field is required!",
+              pattern: {
+                value:
+                  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                message:
+                  "Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character",
+              },
+            })}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#2563EB] focus:outline-none"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         </div>
-      </form>
-    </div>
+        <FieldError message={errors?.password?.message} />
+      </div>
+      <div>
+        <FieldLabel>Confirm Password</FieldLabel>
+        <div className="relative">
+          <input
+            type={showConfirmPassword ? "text" : "password"}
+            disabled={isPending}
+            className={`${userInputClass} pr-10`}
+            placeholder="Confirm password"
+            {...register("confirmPassword", {
+              required: "This field is required!",
+              validate: (value) =>
+                value === getValues("password") || "Passwords don't match",
+            })}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#2563EB] focus:outline-none"
+          >
+            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
+        <FieldError message={errors?.confirmPassword?.message} />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-600 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 font-medium">
+          <MapPin size={14} className="text-[#2563EB]" />
+          {coordinates.latitude
+            ? `GPS Acquired: ${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`
+            : "Acquiring GPS location..."}
+        </span>
+        <button
+          type="button"
+          onClick={fetchLocation}
+          className="font-bold text-[#2563EB] hover:underline"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <UserPrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Registering..." : "Register"}
+      </UserPrimaryButton>
+    </form>
   );
 };
 
@@ -1210,29 +2112,138 @@ export const UserRegister = () => {
   const [aadhaar_no, setAadhaar_no] = useState(null);
   const [maskedPhone, setMaskedPhone] = useState(null);
   const [user, setUser] = useState("");
+
+  const root = useRef(null);
+  const panelRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".ur-card",
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+      );
+    }, root);
+    return () => ctx.revert();
+  }, []);
+
+  useEffect(() => {
+    if (!panelRef.current) return;
+    gsap.fromTo(
+      panelRef.current,
+      { opacity: 0, x: 14 },
+      { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" },
+    );
+  }, [step]);
+
   return (
-    <div>
-      <h1>User Registration</h1>
-      {step === 1 ? (
-        <VerifyUserCredentials
-          setStep={setStep}
-          setMaskedPhone={setMaskedPhone}
-          setAadhaar_no={setAadhaar_no}
-          setUser={setUser}
-        />
-      ) : (
-        ""
-      )}
-      {step === 2 ? (
-        <UserSMSOtp
-          maskedPhone={maskedPhone}
-          aadhaar_no={aadhaar_no}
-          setStep={setStep}
-        />
-      ) : (
-        ""
-      )}
-      {step === 3 ? <UserRegistration setStep={setStep} user={user} /> : ""}
+    <div
+      ref={root}
+      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#F8FAFC] px-4 py-10 text-[#0F172A]"
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(37,99,235,0.06), transparent 70%)",
+        }}
+      />
+
+      <div className="ur-card relative z-10 w-full max-w-md">
+        <div className="mb-6 text-center">
+          <div className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: USER_ACCENT }}
+            />
+            Citizen Portal
+          </div>
+          <h1 className="text-[1.6rem] font-bold tracking-tight">
+            Register as a <span style={{ color: USER_ACCENT }}>user</span>
+          </h1>
+        </div>
+
+        <div className="mb-8 flex items-center justify-between">
+          {USER_STEPS.map(({ id, label, Icon }, i) => {
+            const isDone = step > id;
+            const isActive = step === id;
+            return (
+              <div key={id} className="flex flex-1 items-center">
+                <div className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full border text-[0.75rem] font-semibold transition-colors"
+                    style={{
+                      borderColor: isDone || isActive ? USER_ACCENT : "#E2E8F0",
+                      backgroundColor: isDone ? USER_ACCENT : "white",
+                      color: isDone
+                        ? "white"
+                        : isActive
+                          ? USER_ACCENT
+                          : "#94A3B8",
+                    }}
+                  >
+                    {Icon && <Icon size={14} strokeWidth={2.2} />}
+                  </div>
+                  <span
+                    className="hidden text-[0.65rem] font-bold sm:block"
+                    style={{ color: isActive ? USER_ACCENT : "#94A3B8" }}
+                  >
+                    {label}
+                  </span>
+                </div>
+                {i < USER_STEPS.length - 1 && (
+                  <div
+                    className="mx-1.5 h-px flex-1"
+                    style={{
+                      backgroundColor: isDone ? USER_ACCENT : "#E2E8F0",
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          ref={panelRef}
+          className="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm"
+        >
+          {step === 1 && (
+            <VerifyUserCredentials
+              setStep={setStep}
+              setMaskedPhone={setMaskedPhone}
+              setAadhaar_no={setAadhaar_no}
+              setUser={setUser}
+            />
+          )}
+          {step === 2 && (
+            <UserSMSOtp
+              maskedPhone={maskedPhone}
+              aadhaar_no={aadhaar_no}
+              setStep={setStep}
+            />
+          )}
+          {step === 3 && <UserRegistration setStep={setStep} user={user} />}
+        </div>
+
+        <p className="mt-6 text-center text-[0.8rem] text-[#94A3B8]">
+          <Link to="/" className="hover:text-[#64748B]">
+            ← Back to ResQGrid home
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
@@ -1261,6 +2272,8 @@ const useLoginUser = () => {
 export const UserLogin = () => {
   const { loginUser, isPending } = useLoginUser();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+
   const {
     handleSubmit,
     register,
@@ -1277,40 +2290,89 @@ export const UserLogin = () => {
       onError: (err) => toast.error(err.response?.data?.message),
     });
   };
+
   return (
-    <div>
-      <h1>User Login</h1>
-      <div>
-        <form onSubmit={handleSubmit(submitHandler)}>
-          <div>
-            <label className="floating-label">
-              <span>Aadhaar Number</span>
-              <input
-                type="text"
-                disabled={isPending}
-                {...register("aadhaar_no", {
-                  required: "This field is required",
-                  minLength: {
-                    value: 12,
-                    message: "Aadhaar number must be exactly 12 characters",
-                  },
-                  maxLength: {
-                    value: 12,
-                    message: "Aadhaar number must be exactly 12 characters",
-                  },
-                })}
-              />
-            </label>
-            {errors?.aadhaar_no ? <p>{errors?.aadhaar_no?.message}</p> : ""}
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#F8FAFC] px-4 text-[#0F172A]">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(37,99,235,0.06), transparent 70%)",
+        }}
+      />
+
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-4xl border border-slate-200/80 bg-white/80 p-8 shadow-xl backdrop-blur-xl transition-all">
+        <div className="absolute -right-12 -top-12 -z-10 h-48 w-48 rounded-full bg-linear-to-br from-blue-400/20 to-transparent blur-3xl"></div>
+
+        <div className="mb-8 text-center">
+          <div className="mb-2 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: "#2563EB" }}
+            />
+            Secure Authentication
           </div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            Citizen <span style={{ color: "#2563EB" }}>Login</span>
+          </h1>
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            Enter your credentials to access the emergency portal
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit(submitHandler)} className="space-y-5">
           <div>
-            <label className="floating-label">
-              <span>Password</span>
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Aadhaar Number
+            </span>
+            <input
+              type="text"
+              placeholder="12-digit number"
+              className={userInputClass}
+              disabled={isPending}
+              {...register("aadhaar_no", {
+                required: "This field is required",
+                minLength: {
+                  value: 12,
+                  message: "Aadhaar number must be exactly 12 characters",
+                },
+                maxLength: {
+                  value: 12,
+                  message: "Aadhaar number must be exactly 12 characters",
+                },
+              })}
+            />
+            {errors?.aadhaar_no && (
+              <p className="mt-1.5 text-xs font-semibold text-red-600">
+                {errors.aadhaar_no.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Password
+            </span>
+            <div className="relative">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 disabled={isPending}
+                className={`${userInputClass} pr-10`}
+                placeholder="Enter your password"
                 {...register("password", {
-                  required: "This field is required",
+                  required: "This field is required!",
                   pattern: {
                     value:
                       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
@@ -1319,15 +2381,34 @@ export const UserLogin = () => {
                   },
                 })}
               />
-            </label>
-            {errors?.password ? <p>{errors?.password?.message}</p> : ""}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#2563EB] focus:outline-none"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {errors?.password && (
+              <p className="mt-1.5 text-xs font-semibold text-red-600">
+                {errors.password.message}
+              </p>
+            )}
           </div>
-          <div>
-            <button disabled={isPending} className="btn btn-primary uppercase">
-              Login
-            </button>
-          </div>
+
+          <UserPrimaryButton type="submit" disabled={isPending}>
+            {isPending ? "Authenticating..." : "Access Portal"}
+          </UserPrimaryButton>
         </form>
+
+        <div className="mt-6 text-center">
+          <Link
+            to="/"
+            className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+          >
+            ← Back to ResQGrid home
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -1358,38 +2439,244 @@ const useLogoutAgency = () => {
 };
 
 const AgencyLayout = () => {
+  const layoutRef = useRef(null);
   const { logoutAgency, isPending } = useLogoutAgency();
   const logoutHandler = () => {
     logoutAgency();
   };
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".al-header",
+        { opacity: 0, y: -20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+      );
+      gsap.fromTo(
+        ".al-nav-item",
+        { opacity: 0, x: -10 },
+        {
+          opacity: 1,
+          x: 0,
+          duration: 0.4,
+          stagger: 0.05,
+          ease: "power2.out",
+          delay: 0.2,
+        },
+      );
+      gsap.fromTo(
+        ".al-content",
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", delay: 0.3 },
+      );
+    }, layoutRef);
+    return () => ctx.revert();
+  }, []);
   return (
     <AgencySocketProvider>
-      <header>
-        <NavLink to="/agency/home">Home</NavLink>
-        <NavLink to="/agency/dashboard">Dashboard</NavLink>
-        <NavLink to="/agency/inbox">Inbox</NavLink>
-        <NavLink to="/agency/units">Units</NavLink>
-        <NavLink to="/agency/sosInbox">SOS Inbox</NavLink>
-        <button disabled={isPending} onClick={logoutHandler}>
-          Logout
-        </button>
-      </header>
-      <main>
-        <Outlet />
-      </main>
-      <footer>footer</footer>
+      <div
+        ref={layoutRef}
+        className="relative z-0 min-h-screen overflow-hidden bg-[#F8FAFC] text-[#0F172A]"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+            maskImage:
+              "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(13,148,136,0.04), transparent 70%)",
+          }}
+        />
+
+        <header className="al-header relative z-10 border-b border-[#E2E8F0] bg-white shadow-sm">
+          <div className="bg-[#0F172A]">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300">
+              <span>Government Agency Portal</span>
+              <span>Official Website</span>
+            </div>
+          </div>
+
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <div>
+              <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: ACCENT }}
+                />
+                Agency Portal
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-[#0F172A]">
+                ResQGrid <span style={{ color: ACCENT }}>Command</span>
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {[
+                { to: "/agency/home", label: "Home", Icon: HomeIcon },
+                {
+                  to: "/agency/dashboard",
+                  label: "Dashboard",
+                  Icon: LayoutDashboard,
+                },
+                { to: "/agency/inbox", label: "Inbox", Icon: Inbox },
+                { to: "/agency/units", label: "Units", Icon: Navigation },
+                { to: "/agency/sosInbox", label: "SOS Inbox", Icon: Siren },
+              ].map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `al-nav-item flex items-center gap-2 rounded-lg px-4 py-2.5 text-[0.88rem] font-semibold transition-all ${
+                      isActive
+                        ? "bg-[#0D9488] text-white shadow-md shadow-teal-900/10"
+                        : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                    }`
+                  }
+                >
+                  <Icon size={16} strokeWidth={2.5} />
+                  {label}
+                </NavLink>
+              ))}
+              <button
+                onClick={logoutHandler}
+                disabled={isPending}
+                className="al-nav-item ml-2 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-[0.88rem] font-semibold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50"
+              >
+                {isPending ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          </nav>
+        </header>
+
+        <main className="al-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
+          <Outlet />
+        </main>
+
+        <footer className="relative z-10 border-t border-[#E2E8F0] bg-white">
+          <div className="mx-auto max-w-7xl px-6 py-5 text-center text-sm text-[#64748B]">
+            © ResQGrid Disaster Management Platform. All Rights Reserved.
+          </div>
+        </footer>
+      </div>
     </AgencySocketProvider>
   );
 };
 
-const AgencyDashboard = () => {
-  return <h1>Dashboard</h1>;
+export const AgencyDashboard = () => {
+  const dashRef = useRef(null);
+
+  useEffect(() => {
+    let ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".dash-card",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" },
+      );
+    }, dashRef);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <div ref={dashRef} className="space-y-6">
+      <div className="dash-card flex flex-col justify-between gap-4 rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:flex-row sm:items-center">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[#0F172A]">
+            <BarChart3 className="text-[#0D9488]" /> Analytics Dashboard
+          </h1>
+          <p className="mt-1 text-[0.9rem] text-[#64748B]">
+            Real-time overview of agency operations and resource allocation.
+          </p>
+        </div>
+        <button className="inline-flex items-center gap-2 rounded-lg bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+          <Download size={16} /> Export Report
+        </button>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="dash-card rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between text-slate-600">
+            <h3 className="text-sm font-semibold">Active Missions</h3>
+            <div className="rounded-md bg-blue-100 p-2 text-blue-600">
+              <Siren size={18} />
+            </div>
+          </div>
+          <div className="flex items-end gap-3">
+            <p className="text-4xl font-bold text-[#0F172A]">12</p>
+            <span className="flex items-center text-sm font-medium text-emerald-600">
+              <ArrowUpRight size={16} /> 2 since yesterday
+            </span>
+          </div>
+        </div>
+
+        <div className="dash-card rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between text-slate-600">
+            <h3 className="text-sm font-semibold">Deployed Personnel</h3>
+            <div className="rounded-md bg-teal-100 p-2 text-teal-600">
+              <Users size={18} />
+            </div>
+          </div>
+          <div className="flex items-end gap-3">
+            <p className="text-4xl font-bold text-[#0F172A]">84</p>
+            <span className="text-sm font-medium text-slate-500">
+              Across 5 zones
+            </span>
+          </div>
+        </div>
+
+        <div className="dash-card rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between text-slate-600">
+            <h3 className="text-sm font-semibold">Avg. Response Time</h3>
+            <div className="rounded-md bg-orange-100 p-2 text-orange-600">
+              <Clock size={18} />
+            </div>
+          </div>
+          <div className="flex items-end gap-3">
+            <p className="text-4xl font-bold text-[#0F172A]">
+              14<span className="text-xl text-slate-500">m</span>
+            </p>
+            <span className="flex items-center text-sm font-medium text-emerald-600">
+              <ArrowUpRight size={16} className="rotate-90" /> -2m improvement
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const AgencyInbox = () => {
+export const AgencyInbox = () => {
+  const inboxRef = useRef(null);
+
+  useEffect(() => {
+    let ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".inbox-card",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+      );
+    }, inboxRef);
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <div>
-      <h1>Inbox</h1>
+    <div ref={inboxRef} className="space-y-6">
+      <div className="inbox-card rounded-xl border border-[#E2E8F0] bg-white p-8 shadow-sm">
+        <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">
+          Inbox
+        </h1>
+        <p className="mt-2 text-[0.9rem] text-[#64748B]">
+          View and manage incoming agency messages and regional dispatches.
+        </p>
+      </div>
     </div>
   );
 };
@@ -1415,91 +2702,317 @@ const useGetAgencyUnits = () => {
 
 const AgencyUnits = () => {
   const { agencyUnits, isPending } = useGetAgencyUnits();
+  const { agency, isPending: agencyPending } = useGetMyAgency();
   const navigate = useNavigate();
+  const [mapCenter, setMapCenter] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  if (isPending) return <h1>Loading...</h1>;
+  if (isPending || agencyPending) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0D9488]"></span>
+      </div>
+    );
+  }
+
+  const [hqLng, hqLat] = agency.hq_location.coordinates;
+  const currentCenter = mapCenter || [hqLat, hqLng];
+
   const formatAssetName = (name) => {
     return name
       .replaceAll("_", " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
   };
-  return (
-    <div>
-      <h1>Units</h1>
-      {agencyUnits.map((unit) => {
-        return (
-          <div>
-            <p>{unit.unit_id}</p>
-            <p>{unit.unit_name}</p>
-            <p>{unit.unit_type}</p>
 
-            <div>
-              {Object.entries(unit.equipped_assets).map(([asset, quantity]) => {
-                return (
-                  <div>
-                    <span>{formatAssetName(asset)}</span>
-                    <span>{quantity}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <p>{unit.status}</p>
-            <p>{unit.unit_coverage_radius_km}</p>
-            <p>{unit.unit_email}</p>
-            <p>{unit.unit_contact_no}</p>
-            <div>
-              <button
-                onClick={() =>
-                  navigate(`/agency/unit/${unit.unit_id}/activeMission`)
-                }
-                className="btn btn-primary"
-              >
-                Track Active Mission
-              </button>
-              <button
-                onClick={() =>
-                  navigate(`/agency/unit/${unit.unit_id}/trackRecords`)
-                }
-                className="btn btn-accent"
-              >
-                View Track Records
-              </button>
-            </div>
+  const filteredUnits = agencyUnits.filter((unit) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      unit.unit_name?.toLowerCase().includes(query) ||
+      unit.unit_id?.toLowerCase().includes(query) ||
+      unit.unit_type?.toLowerCase().includes(query) ||
+      unit.unit_email?.toLowerCase().includes(query)
+    );
+  });
+
+  const activeCount = agencyUnits.filter(
+    (u) => u.status === "AVAILABLE",
+  ).length;
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col justify-between gap-5 rounded-4xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-xl md:flex-row md:items-center">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[#0F172A]">
+            <Navigation className="text-[#0D9488]" /> Fleet Command
+          </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-semibold">
+            <span className="rounded-lg bg-slate-100 px-3 py-1 text-slate-600">
+              Total: {agencyUnits.length}
+            </span>
+            <span className="rounded-lg bg-emerald-50 px-3 py-1 text-emerald-700 border border-emerald-100">
+              Ready: {activeCount}
+            </span>
           </div>
-        );
-      })}
-      <AgencyUnitsMap />
+        </div>
+
+        <div className="flex w-full gap-3 md:w-auto">
+          <div className="relative flex-1 md:w-72">
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              size={16}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search units or assets..."
+              className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm font-medium outline-none transition focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20"
+            />
+          </div>
+          <button className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white p-3 text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900">
+            <Filter size={18} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap justify-center gap-8 max-w-7xl mx-auto">
+        {filteredUnits.map((unit) => {
+          const isAvailable = unit.status === "AVAILABLE";
+          const statusColor = isAvailable
+            ? "text-emerald-700 bg-emerald-100 border-emerald-200"
+            : "text-slate-700 bg-slate-100 border-slate-200";
+          const dotColor = isAvailable ? "bg-emerald-500" : "bg-slate-400";
+          const [lng, lat] = unit.location.coordinates;
+
+          return (
+            <div
+              key={unit.unit_id}
+              className="group relative flex flex-col overflow-hidden rounded-4xl border border-slate-200 bg-white/60 p-6 shadow-sm backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:border-teal-300/50 hover:shadow-[0_20px_40px_rgba(13,148,136,0.12)] w-full md:w-[calc(50%-1rem)] xl:w-[calc(33.333%-1.41rem)] max-w-md"
+            >
+              <div className="absolute -right-12 -top-12 -z-10 h-48 w-48 rounded-full bg-linear-to-br from-teal-400/20 to-transparent blur-3xl transition-transform duration-700 group-hover:scale-150"></div>
+
+              <div className="mb-6 flex items-start justify-between">
+                <div className="pr-4">
+                  <h3 className="mb-1 text-xl font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-teal-700 line-clamp-1">
+                    {unit.unit_name}
+                  </h3>
+                  <p className="font-mono text-[11px] font-semibold text-slate-500">
+                    {unit.unit_id}
+                  </p>
+                </div>
+                <div
+                  className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-sm ${statusColor}`}
+                >
+                  <span className="relative flex h-2 w-2">
+                    {isAvailable && (
+                      <span
+                        className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${dotColor}`}
+                      ></span>
+                    )}
+                    <span
+                      className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}`}
+                    ></span>
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">
+                    {unit.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                <div>
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Classification
+                  </p>
+                  <p className="text-sm font-bold text-slate-800">
+                    {unit.unit_type}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Op. Radius
+                  </p>
+                  <p className="flex items-center justify-end gap-1 text-sm font-bold text-slate-800">
+                    <Radio size={14} className="text-teal-600" />{" "}
+                    {unit.unit_coverage_radius_km} km
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6 flex-1">
+                <h4 className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  <Package size={14} className="text-teal-600" /> Equipped
+                  Assets
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(unit.equipped_assets).map(
+                    ([asset, quantity]) => (
+                      <div
+                        key={asset}
+                        className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-2.5 shadow-sm transition-colors group-hover:border-teal-100 group-hover:bg-teal-50/30"
+                      >
+                        <span className="truncate pr-2 text-xs font-semibold text-slate-600">
+                          {formatAssetName(asset)}
+                        </span>
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-xs font-black text-teal-800">
+                          {quantity}
+                        </span>
+                      </div>
+                    ),
+                  )}
+                  {Object.keys(unit.equipped_assets).length === 0 && (
+                    <div className="col-span-2 rounded-xl bg-slate-50 px-3 py-3 text-center text-xs italic font-medium text-slate-400">
+                      No assets registered to this unit.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-auto border-t border-slate-100 pt-5">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-700">
+                    <Mail size={14} className="text-slate-400" />
+                    <span className="truncate">
+                      {unit.unit_email || "No email provided"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-500 hover:text-slate-700">
+                    <div className="flex items-center gap-2">
+                      <Phone size={14} className="text-slate-400" />
+                      <span>
+                        {unit.unit_contact_no || "No contact provided"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setMapCenter([lat, lng]);
+                        toast.success(`Panning map to ${unit.unit_name}`);
+                      }}
+                      className="flex-1 group/btn flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-600 transition-all hover:bg-[#0D9488] hover:text-white hover:shadow-md cursor-pointer"
+                    >
+                      <Crosshair
+                        size={13}
+                        className="transition-transform group-hover/btn:scale-110"
+                      />{" "}
+                      Pan
+                    </button>
+                    <button
+                      onClick={() =>
+                        navigate(`/agency/unit/${unit.unit_id}/activeMission`)
+                      }
+                      className="flex-1 group/btn flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-600 transition-all hover:bg-blue-600 hover:text-white hover:shadow-md cursor-pointer"
+                    >
+                      <Activity
+                        size={13}
+                        className="transition-transform group-hover/btn:scale-110"
+                      />{" "}
+                      Mission
+                    </button>
+                    <button
+                      onClick={() =>
+                        navigate(`/agency/unit/${unit.unit_id}/trackRecords`)
+                      }
+                      className="flex-1 group/btn flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-600 transition-all hover:bg-purple-600 hover:text-white hover:shadow-md cursor-pointer"
+                    >
+                      <Clock
+                        size={13}
+                        className="transition-transform group-hover/btn:scale-110"
+                      />{" "}
+                      Records
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredUnits.length === 0 && (
+          <div className="col-span-full rounded-4xl border-2 border-dashed border-slate-200 p-16 text-center bg-white/50 backdrop-blur-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner">
+              <Truck size={32} />
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-700">
+              No Matching Units
+            </h3>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              No units match your search query "{searchQuery}".
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+        <div className="mb-6 flex items-center justify-between px-2">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-[#0F172A]">
+            <Navigation size={20} className="text-[#0D9488]" /> Live Tactical
+            Map
+          </h2>
+          <span className="relative flex h-3 w-3">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+          </span>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-inner">
+          <AgencyUnitsMap centerCoordinates={currentCenter} />
+        </div>
+      </div>
     </div>
   );
 };
 
-const AgencyUnitsMap = () => {
+const AgencyUnitsMap = ({ centerCoordinates }) => {
   const { agencyUnits, isPending } = useGetAgencyUnits();
   const { agency, isPending: agencyPending } = useGetMyAgency();
 
   if (isPending || agencyPending) {
-    return <h1>Loading...</h1>;
+    return (
+      <div className="flex h-112.5 w-full items-center justify-center bg-slate-50">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0D9488]"></span>
+      </div>
+    );
   }
 
-  const [longitude, latitude] = agency.hq_location.coordinates;
+  const [hqLng, hqLat] = agency.hq_location.coordinates;
+  const initialCenter = centerCoordinates || [hqLat, hqLng];
+
   return (
     <MapContainer
-      center={[latitude, longitude]}
-      zoom={13}
-      style={{ height: "500px", width: "100%" }}
+      key={`${initialCenter[0]}-${initialCenter[1]}`}
+      center={initialCenter}
+      zoom={14}
+      style={{ height: "450px", width: "100%", zIndex: 0 }}
     >
       <TileLayer
         attribution="&copy; OpenStreetMap contributors"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+
+      <Marker position={[hqLat, hqLng]} icon={hqIcon}>
+        <Popup>
+          <div className="p-1 text-center">
+            <strong className="block text-sm font-bold text-slate-900">
+              {agency.agency_name} (HQ)
+            </strong>
+          </div>
+        </Popup>
+      </Marker>
+
       {agencyUnits.map((unit) => {
-        const [longitude, latitude] = unit.location.coordinates;
+        const [lng, lat] = unit.location.coordinates;
         return (
-          <Marker key={unit.unit_id} position={[latitude, longitude]}>
+          <Marker key={unit.unit_id} position={[lat, lng]} icon={unitIcon}>
             <Popup>
-              <strong>{unit.unit_name}</strong>
-              <br />
-              Status: {unit.status}
+              <div className="p-1 text-center">
+                <strong className="block text-sm font-bold text-slate-800">
+                  {unit.unit_name}
+                </strong>
+                <span className="mt-1.5 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-600">
+                  {unit.status}
+                </span>
+              </div>
             </Popup>
           </Marker>
         );
@@ -1532,9 +3045,37 @@ const useGetUnitActiveMission = () => {
 
 const AgencyUnitActiveMission = () => {
   const { data, isPending } = useGetUnitActiveMission();
-  if (isPending) return <h1>Loading...</h1>;
+  const navigate = useNavigate();
 
-  if (!data || data.length === 0) return <h1>No active missions currently</h1>;
+  if (isPending) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0D9488]"></span>
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="rounded-4xl border-2 border-dashed border-slate-200 bg-white/60 p-16 text-center backdrop-blur-sm max-w-4xl mx-auto">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-50 text-teal-600 shadow-inner">
+          <Activity size={32} />
+        </div>
+        <h3 className="text-xl font-extrabold text-slate-800">
+          No Active Mission
+        </h3>
+        <p className="mt-2 text-sm font-medium text-slate-500">
+          This unit is currently not deployed on an active incident response.
+        </p>
+        <button
+          onClick={() => navigate("/agency/units")}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+        >
+          ← Return to Units
+        </button>
+      </div>
+    );
+  }
 
   const activeMission = data[0];
 
@@ -1556,46 +3097,150 @@ const AgencyUnitActiveMission = () => {
   const [sos_longitude, sos_latitude] = sos_location.coordinates;
 
   return (
-    <>
-      <div>
-        <p>Unit ID: {unit_id}</p>
-        <p>Unit Name: {unit_name}</p>
-        <p>Unit Type: {unit_type}</p>
-        <p>{sos_id}</p>
-        <p>SOS Triggered At: {triggered_at}</p>
-        <p>SOS Status: {sos_status}</p>
-        <p>Assigned At: {assigned_at}</p>
-        <p>Last Updated: {updated_at}</p>
-        <p>Dispatch Status: {dispatch_status}</p>
-      </div>
-      <div>
-        <MapContainer
-          center={[unit_latitude, unit_longitude]}
-          zoom={13}
-          style={{ height: "500px", width: "100%" }}
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto w-full">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="font-mono text-xs uppercase tracking-widest text-[#0D9488]">
+            Mission Telemetry
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            {unit_name} Active Deployment
+          </h1>
+        </div>
+        <button
+          onClick={() => navigate("/agency/units")}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
         >
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <Marker key={unit_id} position={[unit_latitude, unit_longitude]}>
-            <Popup>
-              <strong>{unit_name}</strong>
-              <br />
-              Status: {dispatch_status}
-            </Popup>
-          </Marker>
-          <Marker key={sos_id} position={[sos_latitude, sos_longitude]}>
-            <Popup>
-              <strong>{sos_id}</strong>
-              <br />
-              Status: {sos_status}
-              <p>Triggered from this location at {triggered_at}</p>
-            </Popup>
-          </Marker>
-        </MapContainer>
+          ← Back to Units
+        </button>
       </div>
-    </>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-xl space-y-4">
+          <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+            <Radio size={18} className="text-[#0D9488]" /> Unit Specification
+          </h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Unit ID
+              </p>
+              <p className="font-mono font-semibold text-slate-800">
+                {unit_id}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Classification
+              </p>
+              <p className="font-semibold text-slate-800">{unit_type}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Dispatch Status
+              </p>
+              <span className="inline-block rounded-md bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-700">
+                {dispatch_status}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Assigned At
+              </p>
+              <p className="text-xs font-medium text-slate-700">
+                {assigned_at}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-xl space-y-4">
+          <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+            <AlertTriangle size={18} className="text-red-600" /> Target SOS
+            Details
+          </h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Incident ID
+              </p>
+              <p className="font-mono font-semibold text-slate-800">{sos_id}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Incident Status
+              </p>
+              <span className="inline-block rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">
+                {sos_status}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Triggered Time
+              </p>
+              <p className="text-xs font-medium text-slate-700">
+                {triggered_at}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-bold uppercase">
+                Last Synchronization
+              </p>
+              <p className="text-xs font-medium text-slate-700">{updated_at}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <Navigation size={18} className="text-[#0D9488]" /> Tactical GPS
+          Visualization
+        </h3>
+        <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <MapContainer
+            center={[unit_latitude, unit_longitude]}
+            zoom={13}
+            style={{ height: "480px", width: "100%", zIndex: 0 }}
+          >
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <Marker position={[unit_latitude, unit_longitude]} icon={unitIcon}>
+              <Popup>
+                <div className="p-1 text-center">
+                  <strong className="block text-sm font-bold">
+                    {unit_name}
+                  </strong>
+                  <span className="text-xs text-slate-500">
+                    Status: {dispatch_status}
+                  </span>
+                </div>
+              </Popup>
+            </Marker>
+            <Marker
+              position={[sos_latitude, sos_longitude]}
+              icon={sosAlertMarkerIcon}
+            >
+              <Popup>
+                <div className="p-1 text-center">
+                  <strong className="block text-sm font-bold text-red-600">
+                    Incident #{sos_id}
+                  </strong>
+                  <span className="text-xs text-slate-500">
+                    Status: {sos_status}
+                  </span>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Triggered: {triggered_at}
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          </MapContainer>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -1644,48 +3289,48 @@ export const AgencyVerification = ({ setStep, setAgency }) => {
   };
 
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Agency Type</span>
-            <select
-              className="select select-primary"
-              disabled={isPending}
-              {...register("category", {
-                required: "This field is required!",
-              })}
-            >
-              <option value="GOVT_UNIT">Government Unit</option>
-              <option value="NGO">Non-Profit Organisation</option>
-              <option value="PVT_CORP">Private Corporation</option>
-              <option value="LOGISTICS">Logistics</option>
-            </select>
-          </label>
-          {errors?.category ? <p>{errors.category.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Agency ID</span>
-            <input
-              type="text"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("agency_id", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.agency_id ? <p>{errors.agency_id.message}</p> : ""}
-        </div>
-        <div>
-          <button disabled={isPending} className="btn btn-primary uppercase">
-            next
-          </button>
-        </div>
-      </form>
-      <Link to="/agency/login">Already registered? then login...</Link>
-    </div>
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+      <div>
+        <FieldLabel>Agency Type</FieldLabel>
+        <select
+          disabled={isPending}
+          className={inputClass}
+          {...register("category", { required: "This field is required!" })}
+        >
+          <option value="GOVT_UNIT">Government Unit</option>
+          <option value="NGO">Non-Profit Organisation</option>
+          <option value="PVT_CORP">Private Corporation</option>
+          <option value="LOGISTICS">Logistics</option>
+        </select>
+        <FieldError message={errors?.category?.message} />
+      </div>
+
+      <div>
+        <FieldLabel>Agency ID</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={inputClass}
+          placeholder="e.g. AG-04213"
+          {...register("agency_id", { required: "This field is required!" })}
+        />
+        <FieldError message={errors?.agency_id?.message} />
+      </div>
+
+      <PrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Checking..." : "Continue"}
+      </PrimaryButton>
+
+      <p className="text-center text-[0.82rem] text-[#64748B]">
+        Already registered?{" "}
+        <Link
+          to="/agency/login"
+          className="font-medium text-[#0D9488] hover:underline"
+        >
+          Log in
+        </Link>
+      </p>
+    </form>
   );
 };
 
@@ -1717,51 +3362,33 @@ export const PersonnelVerification = ({
     });
   };
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Official ID</span>
-            <input
-              type="text"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("official_id", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.official_id ? <p>{errors.official_id.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Aadhaar No.</span>
-            <input
-              type="text"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("aadhaar_no", {
-                required: "This field is required!",
-                // maxLength: {
-                //   value: 12,
-                //   message: "Aadhaar number must be exactly 12 digits",
-                // },
-                // minLength: {
-                //   value: 12,
-                //   message: "Aadhaar number must be exactly 12 digits",
-                // },
-              })}
-            />
-          </label>
-          {errors?.aadhaar_no ? <p>{errors.aadhaar_no.message}</p> : ""}
-        </div>
-        <div>
-          <button disabled={isPending} className="btn btn-primary uppercase">
-            {isPending ? "verifying..." : "verify"}
-          </button>
-        </div>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+      <div>
+        <FieldLabel>Official ID</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={inputClass}
+          placeholder="e.g. OFF-9912"
+          {...register("official_id", { required: "This field is required!" })}
+        />
+        <FieldError message={errors?.official_id?.message} />
+      </div>
+      <div>
+        <FieldLabel>Aadhaar No.</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={inputClass}
+          placeholder="12-digit number"
+          {...register("aadhaar_no", { required: "This field is required!" })}
+        />
+        <FieldError message={errors?.aadhaar_no?.message} />
+      </div>
+      <PrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Verifying..." : "Verify"}
+      </PrimaryButton>
+    </form>
   );
 };
 
@@ -1859,85 +3486,68 @@ export const SMSOtp = ({ setStep, maskedPhone, officialId }) => {
   };
 
   return (
-    <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-200">
-      <div className="card-body">
-        <h2 className="card-title text-xl font-bold justify-center">
-          Verify Authorized Signatory
-        </h2>
-        <p className="text-sm text-base-content/70 text-center">
-          Enter the 6-digit code sent to registered mobile{" "}
-          <span className="font-semibold text-primary">{maskedPhone}</span>
-        </p>
+    <div className="space-y-4">
+      <p className="text-center text-[0.85rem] text-[#64748B]">
+        Enter the 6-digit code sent to{" "}
+        <span className="font-semibold text-[#0D9488]">{maskedPhone}</span>
+      </p>
 
-        {serverError && (
-          <div role="alert" className="alert alert-error text-sm py-2 mt-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="stroke-current shrink-0 h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span>{serverError}</span>
-          </div>
+      {serverError && (
+        <div className="rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-2.5 text-[0.82rem] font-medium text-[#DC2626]">
+          {serverError}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onOtpSubmit)} className="space-y-4">
+        <div className="flex justify-center gap-2.5">
+          {otpValues.map((digit, idx) => (
+            <input
+              key={idx}
+              ref={(el) => (inputRefs.current[idx] = el)}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(idx, e)}
+              onKeyDown={(e) => handleKeyDown(idx, e)}
+              onPaste={handlePaste}
+              className={`h-12 w-11 rounded-lg border text-center text-lg font-semibold outline-none transition focus:ring-2 focus:ring-[#0D948826] ${
+                errors.otp || serverError
+                  ? "border-[#DC2626]"
+                  : "border-[#E2E8F0] focus:border-[#0D9488]"
+              }`}
+              autoFocus={idx === 0}
+            />
+          ))}
+        </div>
+
+        {errors.otp && (
+          <p className="text-center text-[0.75rem] font-medium text-[#DC2626]">
+            {errors.otp.message}
+          </p>
         )}
 
-        <form onSubmit={handleSubmit(onOtpSubmit)} className="mt-4 space-y-4">
-          <div className="flex justify-center gap-2">
-            {otpValues.map((digit, idx) => (
-              <input
-                key={idx}
-                ref={(el) => (inputRefs.current[idx] = el)}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleChange(idx, e)}
-                onKeyDown={(e) => handleKeyDown(idx, e)}
-                onPaste={handlePaste}
-                className={`input input-bordered w-12 h-14 text-center text-xl font-bold rounded-lg focus:input-primary ${
-                  errors.otp || serverError ? "input-error" : ""
-                }`}
-                autoFocus={idx === 0}
-              />
-            ))}
-          </div>
-
-          {errors.otp && (
-            <p className="text-error text-xs text-center font-medium">
-              {errors.otp.message}
-            </p>
-          )}
-
-          <div className="card-actions justify-between items-center pt-2">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setStep(2)}
-              disabled={isPending}
-            >
-              ← Back
-            </button>
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isPending}
-            >
-              {isPending && (
-                <span className="loading loading-spinner loading-sm"></span>
-              )}
-              {isPending ? "Verifying..." : "Verify OTP"}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            className="text-[0.85rem] font-medium text-[#64748B] transition hover:text-[#0F172A]"
+            onClick={() => setStep(2)}
+            disabled={isPending}
+          >
+            ← Back
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#0D9488] px-5 py-2.5 text-[0.88rem] font-semibold text-white transition hover:bg-[#0B7C72] disabled:opacity-60"
+          >
+            {isPending && (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            {isPending ? "Verifying..." : "Verify OTP"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
@@ -1963,33 +3573,28 @@ const EmailVerification = ({ setStep, setEmail }) => {
     });
   };
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Agency Official Email Id</span>
-            <input
-              type="text"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("email", {
-                required: "This field is required!",
-                pattern: {
-                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                  message: "Enter a valid email address",
-                },
-              })}
-            />
-          </label>
-          {errors?.email ? <p>{errors.email.message}</p> : ""}
-        </div>
-        <div>
-          <button disabled={isPending} className="uppercase btn btn-primary">
-            verify
-          </button>
-        </div>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+      <div>
+        <FieldLabel>Agency Official Email Id</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={inputClass}
+          placeholder="you@agency.gov"
+          {...register("email", {
+            required: "This field is required!",
+            pattern: {
+              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+              message: "Enter a valid email address",
+            },
+          })}
+        />
+        <FieldError message={errors?.email?.message} />
+      </div>
+      <PrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Sending..." : "Verify"}
+      </PrimaryButton>
+    </form>
   );
 };
 
@@ -2115,86 +3720,69 @@ export const EmailOtp = ({ setStep, email }) => {
     mutationError?.response?.data?.message || mutationError?.message;
 
   return (
-    <div className="card w-full max-w-md bg-base-100 shadow-xl border border-base-200 mx-auto">
-      <div className="card-body">
-        <h2 className="card-title text-xl font-bold justify-center">
-          Verify Official Email
-        </h2>
-        <p className="text-sm text-base-content/70 text-center">
-          Enter the 6-digit verification code sent to{" "}
-          <span className="font-semibold text-primary">{email}</span>
-        </p>
+    <div className="space-y-4">
+      <p className="text-center text-[0.85rem] text-[#64748B]">
+        Enter the 6-digit verification code sent to{" "}
+        <span className="font-semibold text-[#0D9488]">{email}</span>
+      </p>
 
-        {serverErrorMessage && (
-          <div role="alert" className="alert alert-error text-sm py-2 mt-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="stroke-current shrink-0 h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span>{serverErrorMessage}</span>
-          </div>
+      {serverErrorMessage && (
+        <div className="rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-2.5 text-[0.82rem] font-medium text-[#DC2626]">
+          {serverErrorMessage}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div className="flex justify-center gap-2.5">
+          {otpValues.map((digit, idx) => (
+            <input
+              key={idx}
+              ref={(el) => (inputRefs.current[idx] = el)}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(idx, e)}
+              onKeyDown={(e) => handleKeyDown(idx, e)}
+              onPaste={handlePaste}
+              disabled={isPending}
+              className={`h-12 w-11 rounded-lg border text-center text-lg font-semibold outline-none transition focus:ring-2 focus:ring-[#0D948826] ${
+                errors.otp || serverErrorMessage
+                  ? "border-[#DC2626]"
+                  : "border-[#E2E8F0] focus:border-[#0D9488]"
+              }`}
+              autoFocus={idx === 0}
+            />
+          ))}
+        </div>
+
+        {errors.otp && (
+          <p className="text-center text-[0.75rem] font-medium text-[#DC2626]">
+            {errors.otp.message}
+          </p>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-5">
-          <div className="flex justify-center gap-2">
-            {otpValues.map((digit, idx) => (
-              <input
-                key={idx}
-                ref={(el) => (inputRefs.current[idx] = el)}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleChange(idx, e)}
-                onKeyDown={(e) => handleKeyDown(idx, e)}
-                onPaste={handlePaste}
-                disabled={isPending}
-                className={`input input-bordered w-12 h-14 text-center text-xl font-bold rounded-lg focus:input-primary ${
-                  errors.otp || serverErrorMessage ? "input-error" : ""
-                }`}
-                autoFocus={idx === 0}
-              />
-            ))}
-          </div>
-
-          {errors.otp && (
-            <p className="text-error text-xs text-center font-medium">
-              {errors.otp.message}
-            </p>
-          )}
-
-          <div className="card-actions justify-between items-center pt-2">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setStep((prev) => prev - 1)}
-              disabled={isPending}
-            >
-              ← Back
-            </button>
-
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isPending}
-            >
-              {isPending && (
-                <span className="loading loading-spinner loading-sm"></span>
-              )}
-              {isPending ? "Verifying..." : "Verify Code"}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            className="text-[0.85rem] font-medium text-[#64748B] transition hover:text-[#0F172A]"
+            onClick={() => setStep((prev) => prev - 1)}
+            disabled={isPending}
+          >
+            ← Back
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#0D9488] px-5 py-2.5 text-[0.88rem] font-semibold text-white transition hover:bg-[#0B7C72] disabled:opacity-60"
+          >
+            {isPending && (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            {isPending ? "Verifying..." : "Verify Code"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
@@ -2236,7 +3824,6 @@ export const AgencyRegistration = ({ agency, setStep }) => {
     reset,
   } = useForm();
   const { registerAgency, isPending } = useRegisterAgency();
-  console.log(agency);
   const submitHandler = (data) => {
     const payload = {
       agency_id: agency.agency_id,
@@ -2276,218 +3863,168 @@ export const AgencyRegistration = ({ agency, setStep }) => {
   }, [coordinates, setValue]);
   return (
     <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
+      <div className="mb-6">
+        <h2 className="text-[1.3rem] font-bold text-[#0F172A]">
+          Agency Registration
+        </h2>
+        <p className="mt-1 text-[0.85rem] text-[#64748B]">
+          Provide your operational details to complete registration.
+        </p>
+      </div>
+      <form onSubmit={handleSubmit(submitHandler)} className="space-y-6">
         <div>
-          <label className="floating-label">
-            <span>Operational Coverage Radius in km</span>
-            <input
-              type="number"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("coverage_radius_km", {
-                required: "This field is required",
-              })}
-            />
-          </label>
-          {errors?.coverage_radius_km ? (
-            <p>{errors?.coverage_radius_km.message}</p>
-          ) : (
-            ""
-          )}
+          <FieldLabel>Operational Coverage Radius in km</FieldLabel>
+          <input
+            type="number"
+            disabled={isPending}
+            className={inputClass}
+            placeholder="Enter coverage radius"
+            {...register("coverage_radius_km", {
+              required: "This field is required",
+            })}
+          />
+          <FieldError message={errors?.coverage_radius_km?.message} />
         </div>
         <div>
-          <label className="floating-label">
-            <span>Emergency Hotline No.</span>
-            <input
-              type="text"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("hotline_no", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.hotline_no ? <p>{errors?.hotline_no.message}</p> : ""}
-        </div>
-        <div>
-          <h2>Primary Capabilities</h2>
-          <div>
-            <label htmlFor="med">MEDICAL</label>
-            <input
-              id="med"
-              value="MEDICAL"
-              disabled={isPending}
-              type="checkbox"
-              {...register("primary_capabilities_tags", {
-                validate: (value) =>
-                  value.length > 0 || "Select at least one of these tags",
-              })}
-            />
-          </div>
-          <div>
-            <label htmlFor="water">WATER RESCUE</label>
-            <input
-              id="water"
-              value="WATER RESCUE"
-              disabled={isPending}
-              type="checkbox"
-              {...register("primary_capabilities_tags", {
-                validate: (value) =>
-                  value.length > 0 || "Select at least one of these tags",
-              })}
-            />
-          </div>
-          <div>
-            <label htmlFor="fire">FIRE RESCUE</label>
-            <input
-              id="fire"
-              value="FIRE RESCUE"
-              disabled={isPending}
-              type="checkbox"
-              {...register("primary_capabilities_tags", {
-                validate: (value) =>
-                  value.length > 0 || "Select at least one of these tags",
-              })}
-            />
-          </div>
-          <div>
-            <label htmlFor="food">FOOD DISTRIBUTION</label>
-            <input
-              id="food"
-              value="FOOD DISTRIBUTION"
-              disabled={isPending}
-              type="checkbox"
-              {...register("primary_capabilities_tags", {
-                validate: (value) =>
-                  value.length > 0 || "Select at least one of these tags",
-              })}
-            />
-          </div>
-          <div>
-            <label htmlFor="shelter">SHELTER</label>
-            <input
-              id="shelter"
-              value="SHELTER"
-              disabled={isPending}
-              type="checkbox"
-              {...register("primary_capabilities_tags", {
-                validate: (value) =>
-                  value.length > 0 || "Select at least one of these tags",
-              })}
-            />
-          </div>
-          <div>
-            <label htmlFor="clearance">HEAVY CLEARANCE</label>
-            <input
-              id="clearance"
-              value="HEAVY CLEARANCE"
-              disabled={isPending}
-              type="checkbox"
-              {...register("primary_capabilities_tags", {
-                validate: (value) =>
-                  value.length > 0 || "Select at least one of these tags",
-              })}
-            />
-          </div>
-          {errors?.primary_capabilities_tags ? (
-            <p>{errors?.primary_capabilities_tags.message}</p>
-          ) : (
-            ""
-          )}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Full Address</span>
-            <input
-              type="text"
-              disabled={isPending}
-              className="input input-primary"
-              {...register("hq_location_address", {
-                required: "This filed is required",
-                minLength: {
-                  value: 15,
-                  message: "Minimum 15 chartacters address has to be entered",
-                },
-              })}
-            />
-          </label>
-          {errors?.hq_location_address ? (
-            <p>{errors?.hq_location_address.message}</p>
-          ) : (
-            ""
-          )}
-        </div>
-        <div>
-          <label>Location Coordinates</label>
+          <FieldLabel>Emergency Hotline No.</FieldLabel>
           <input
             type="text"
             disabled={isPending}
-            placeholder="latitude"
-            {...register("latitude", {
-              required: "Both the fields are required!",
-            })}
+            className={inputClass}
+            placeholder="Enter emergency hotline number"
+            {...register("hotline_no", { required: "This field is required!" })}
           />
+          <FieldError message={errors?.hotline_no?.message} />
+        </div>
+        <div>
+          <h3 className="text-[0.95rem] font-bold text-[#0F172A]">
+            Primary Capabilities
+          </h3>
+          <p className="mb-3 mt-1 text-[0.8rem] text-[#64748B]">
+            Select all services your agency can provide.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              "MEDICAL",
+              "WATER RESCUE",
+              "FIRE RESCUE",
+              "FOOD DISTRIBUTION",
+              "SHELTER",
+              "HEAVY CLEARANCE",
+            ].map((label, i) => (
+              <CapabilityCheckbox
+                key={label}
+                label={label}
+                inputId={`cap-${i}`}
+                disabled={isPending}
+                registerMethod={register("primary_capabilities_tags", {
+                  validate: (value) =>
+                    value.length > 0 || "Select at least one of these tags",
+                })}
+              />
+            ))}
+          </div>
+          <FieldError message={errors?.primary_capabilities_tags?.message} />
+        </div>
+        <div>
+          <FieldLabel>Full Address</FieldLabel>
           <input
             type="text"
             disabled={isPending}
-            placeholder="longitude"
-            {...register("longitude", {
-              required: "Both the fields are required!",
+            className={inputClass}
+            placeholder="Enter complete headquarters address"
+            {...register("hq_location_address", {
+              required: "This field is required",
+              minLength: {
+                value: 15,
+                message: "Minimum 15 characters address has to be entered",
+              },
             })}
           />
-          <button type="button" disabled={loading} onClick={fetchLocation}>
-            {loading ? "Fetching..." : "Get Location"}
+          <FieldError message={errors?.hq_location_address?.message} />
+        </div>
+        <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">
+          <h3 className="text-[0.95rem] font-bold text-[#0F172A]">
+            Location Coordinates
+          </h3>
+          <p className="mb-4 mt-1 text-[0.8rem] text-[#64748B]">
+            Enter coordinates manually or fetch your current location.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Latitude</FieldLabel>
+              <input
+                type="text"
+                disabled={isPending}
+                placeholder="latitude"
+                className={inputClass}
+                {...register("latitude", {
+                  required: "Both the fields are required!",
+                })}
+              />
+            </div>
+            <div>
+              <FieldLabel>Longitude</FieldLabel>
+              <input
+                type="text"
+                disabled={isPending}
+                placeholder="longitude"
+                className={inputClass}
+                {...register("longitude", {
+                  required: "Both the fields are required!",
+                })}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchLocation}
+            disabled={loading || isPending}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#0D9488] px-4 py-2 text-[0.82rem] font-semibold text-[#0D9488] transition hover:bg-[#F0FDFA] disabled:opacity-60"
+          >
+            📍 {loading ? "Fetching..." : "Get Location"}
           </button>
-          {error ? <p>{error}</p> : ""}
-          {errors?.latitude || errors?.longitude ? (
-            <p>{errors?.latitude?.message || errors?.longitude?.message}</p>
-          ) : (
-            ""
-          )}
+          {error && <FieldError message={error} />}
+          <FieldError message={errors?.latitude?.message} />
+          <FieldError message={errors?.longitude?.message} />
         </div>
         <div>
-          <label className="floating-label">
-            <span>Password For Future Login</span>
-            <input
-              type="password"
-              disabled={isPending}
-              {...register("password", {
-                required: "This field is required",
-                pattern: {
-                  value:
-                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                  message:
-                    "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character",
-                },
-              })}
-            />
-          </label>
-          {errors?.password ? <p>{errors?.password.message}</p> : ""}
+          <FieldLabel>Password For Future Login</FieldLabel>
+          <input
+            type="password"
+            disabled={isPending}
+            className={inputClass}
+            placeholder="Create a strong password"
+            {...register("password", {
+              required: "This field is required",
+              pattern: {
+                value:
+                  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                message:
+                  "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character",
+              },
+            })}
+          />
+          <FieldError message={errors?.password?.message} />
         </div>
         <div>
-          <label className="floating-label">
-            <span>Confirm Password</span>
-            <input
-              type="password"
-              disabled={isPending}
-              {...register("confirmPassword", {
-                required: "This field is required!",
-                validate: (value) =>
-                  value === getValues("password") || "Passwords do not match",
-              })}
-            />
-          </label>
-          {errors?.confirmPassword ? (
-            <p>{errors?.confirmPassword.message}</p>
-          ) : (
-            ""
-          )}
+          <FieldLabel>Confirm Password</FieldLabel>
+          <input
+            type="password"
+            disabled={isPending}
+            className={inputClass}
+            placeholder="Confirm your password"
+            {...register("confirmPassword", {
+              required: "This field is required!",
+              validate: (value) =>
+                value === getValues("password") || "Passwords do not match",
+            })}
+          />
+          <FieldError message={errors?.confirmPassword?.message} />
         </div>
-        <div>
-          <button className="btn btn-primary" disabled={isPending}>
-            register
-          </button>
-        </div>
+        <PrimaryButton type="submit" disabled={isPending}>
+          {isPending ? "Registering..." : "Register"}
+        </PrimaryButton>
       </form>
     </div>
   );
@@ -2566,43 +4103,139 @@ export const AgencyRegister = () => {
   const [email, setEmail] = useState("");
   const [agency, setAgency] = useState("");
 
+  const root = useRef(null);
+  const panelRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".ar-card",
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+      );
+    }, root);
+    return () => ctx.revert();
+  }, []);
+
+  useEffect(() => {
+    if (!panelRef.current) return;
+    gsap.fromTo(
+      panelRef.current,
+      { opacity: 0, x: 14 },
+      { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" },
+    );
+  }, [step]);
+
   return (
-    <div>
-      <h1>Agency Registration</h1>
-      {step === 1 ? (
-        <AgencyVerification setStep={setStep} setAgency={setAgency} />
-      ) : (
-        ""
-      )}
-      {step === 2 ? (
-        <PersonnelVerification
-          setStep={setStep}
-          setOfficialId={setOfficialId}
-          setMaskedPhone={setMaskedPhone}
-        />
-      ) : (
-        ""
-      )}
-      {step === 3 ? (
-        <SMSOtp
-          setStep={setStep}
-          officialId={officialId}
-          maskedPhone={maskedPhone}
-        />
-      ) : (
-        ""
-      )}
-      {step === 4 ? (
-        <EmailVerification setStep={setStep} setEmail={setEmail} />
-      ) : (
-        ""
-      )}
-      {step === 5 ? <EmailOtp setStep={setStep} email={email} /> : ""}
-      {step === 6 ? (
-        <AgencyRegistration setStep={setStep} agency={agency} />
-      ) : (
-        ""
-      )}
+    <div
+      ref={root}
+      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-white px-4 py-10 text-[#0F172A]"
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(13,148,136,0.06), transparent 70%)",
+        }}
+      />
+
+      <div className="ar-card relative z-10 w-full max-w-md">
+        <div className="mb-6 text-center">
+          <div className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: ACCENT }}
+            />
+            Agency Portal
+          </div>
+          <h1 className="text-[1.6rem] font-bold tracking-tight">
+            Register your <span style={{ color: ACCENT }}>agency</span>
+          </h1>
+        </div>
+
+        <div className="mb-8 flex items-center justify-between">
+          {STEPS.map(({ id, label, Icon }, i) => {
+            const isDone = step > id;
+            const isActive = step === id;
+            return (
+              <div key={id} className="flex flex-1 items-center">
+                <div className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full border text-[0.75rem] font-semibold transition-colors"
+                    style={{
+                      borderColor: isDone || isActive ? ACCENT : "#E2E8F0",
+                      backgroundColor: isDone ? ACCENT : "white",
+                      color: isDone ? "white" : isActive ? ACCENT : "#94A3B8",
+                    }}
+                  >
+                    {Icon && <Icon size={14} strokeWidth={2.2} />}
+                  </div>
+                  <span
+                    className="hidden text-[0.65rem] font-medium sm:block"
+                    style={{ color: isActive ? ACCENT : "#94A3B8" }}
+                  >
+                    {label}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div
+                    className="mx-1.5 h-px flex-1"
+                    style={{ backgroundColor: isDone ? ACCENT : "#E2E8F0" }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          ref={panelRef}
+          className="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm"
+        >
+          {step === 1 && (
+            <AgencyVerification setStep={setStep} setAgency={setAgency} />
+          )}
+          {step === 2 && (
+            <PersonnelVerification
+              setStep={setStep}
+              setOfficialId={setOfficialId}
+              setMaskedPhone={setMaskedPhone}
+            />
+          )}
+          {step === 3 && (
+            <SMSOtp
+              setStep={setStep}
+              officialId={officialId}
+              maskedPhone={maskedPhone}
+            />
+          )}
+          {step === 4 && (
+            <EmailVerification setStep={setStep} setEmail={setEmail} />
+          )}
+          {step === 5 && <EmailOtp setStep={setStep} email={email} />}
+          {step === 6 && (
+            <AgencyRegistration setStep={setStep} agency={agency} />
+          )}
+        </div>
+
+        <p className="mt-6 text-center text-[0.8rem] text-[#94A3B8]">
+          <Link to="/" className="hover:text-[#64748B]">
+            ← Back to ResQGrid home
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
@@ -2632,6 +4265,7 @@ export const AgencyLogin = () => {
   const { agencyLogin, isPending } = useAgencyLogin();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -2651,47 +4285,113 @@ export const AgencyLogin = () => {
     });
   };
   return (
-    <div>
-      <h1>Agency Login</h1>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Agency ID</span>
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#F8FAFC] px-4 text-[#0F172A]">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(13,148,136,0.06), transparent 70%)",
+        }}
+      />
+
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-4xl border border-slate-200/80 bg-white/80 p-8 shadow-xl backdrop-blur-xl transition-all">
+        <div className="absolute -right-12 -top-12 -z-10 h-48 w-48 rounded-full bg-linear-to-br from-teal-400/20 to-transparent blur-3xl"></div>
+
+        <div className="mb-8 text-center">
+          <div className="mb-2 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: "#0D9488" }}
+            />
+            Secure Authentication
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            Agency <span style={{ color: "#0D9488" }}>Login</span>
+          </h1>
+          <p className="mt-1 text-xs text-slate-500">
+            Enter your credentials to access the command portal
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit(submitHandler)} className="space-y-5">
+          <div>
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Agency ID
+            </span>
             <input
               type="text"
+              placeholder="e.g. AG-04213"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium outline-none transition focus:border-[#0D9488] focus:bg-white focus:ring-2 focus:ring-[#0D9488]/20"
               disabled={isPending}
-              {...register("agency_id", {
-                required: "This field is required",
-              })}
+              {...register("agency_id", { required: "Agency ID is required" })}
             />
-          </label>
-          {errors?.agency_id ? <p>{errors.agency_id.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Password</span>
-            <input
-              type="password"
-              disabled={isPending}
-              {...register("password", {
-                required: "This field is required!",
-                pattern: {
-                  value:
-                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                  message:
-                    "Password must be at least 8 characters and contain uppercase, lowercase, number, and special character",
-                },
-              })}
-            />
-          </label>
-          {errors?.password ? <p>{errors.password.message}</p> : ""}
-        </div>
-        <div>
-          <button className="btn btn-primary uppercase" disabled={isPending}>
-            login
+            {errors?.agency_id && (
+              <p className="mt-1.5 text-xs font-semibold text-red-600">
+                {errors.agency_id.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
+              Password
+            </span>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 pr-12 text-sm font-medium outline-none transition focus:border-[#0D9488] focus:bg-white focus:ring-2 focus:ring-[#0D9488]/20"
+                disabled={isPending}
+                {...register("password", { required: "Password is required!" })}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600 focus:outline-none"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {errors?.password && (
+              <p className="mt-1.5 text-xs font-semibold text-red-600">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0D9488] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-600/20 transition-all hover:bg-teal-700 hover:shadow-teal-600/40 disabled:opacity-70"
+            disabled={isPending}
+          >
+            {isPending && (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            {isPending ? "Authenticating..." : "Access Portal"}
           </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <Link
+            to="/"
+            className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+          >
+            ← Back to ResQGrid home
+          </Link>
         </div>
-      </form>
+      </div>
     </div>
   );
 };
@@ -2717,13 +4417,120 @@ const useGetMyAgency = () => {
 
 export const AgencyHome = () => {
   const { agency, isPending } = useGetMyAgency();
-  if (isPending) return <h1>Loading...</h1>;
+  const { agencyUnits, isPending: unitsPending } = useGetAgencyUnits();
+  const homeRef = useRef(null);
+
+  useEffect(() => {
+    if (!isPending && !unitsPending) {
+      let ctx = gsap.context(() => {
+        gsap.fromTo(
+          ".home-card",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" },
+        );
+      }, homeRef);
+      return () => ctx.revert();
+    }
+  }, [isPending, unitsPending]);
+
+  if (isPending || unitsPending)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0D9488]"></span>
+      </div>
+    );
+
+  const activeUnitsCount = agencyUnits?.length || 0;
+
   return (
-    <div>
-      <h1>{agency.agency_name}</h1>
-      <p>{agency.authorized_state}</p>
-      <p>{agency.hotline_no}</p>
-      <p>{agency.coverage_radius_km}</p>
+    <div ref={homeRef} className="space-y-6">
+      <div className="home-card rounded-xl border border-[#E2E8F0] bg-white p-8 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#F0FDFA] px-3 py-1 text-[0.75rem] font-bold text-[#0D9488]">
+            <Building size={14} /> Official Command Center
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+            <CheckCircle2 size={12} className="text-emerald-500" />
+            Verified Registry
+          </span>
+        </div>
+
+        <h1 className="text-3xl font-bold tracking-tight text-[#0F172A]">
+          {agency?.agency_name}
+        </h1>
+        <div className="mt-2 flex items-center gap-4 text-sm text-[#64748B]">
+          <span className="flex items-center gap-1">
+            <MapPin size={14} /> {agency?.authorized_state}
+          </span>
+          <span>•</span>
+          <span className="flex items-center gap-1">
+            <Radio size={14} /> ID: {agency?.agency_id}
+          </span>
+        </div>
+
+        <div className="mt-6">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Primary Capabilities
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {agency?.primary_capabilities_tags?.map((tag, idx) => (
+              <span
+                key={idx}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700"
+              >
+                {tag}
+              </span>
+            ))}
+            {(!agency?.primary_capabilities_tags ||
+              agency?.primary_capabilities_tags.length === 0) && (
+              <span className="text-sm text-slate-400">
+                No capabilities listed.
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-4">
+        <div className="home-card flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3 text-slate-600">
+            <Radio size={20} className="text-blue-500" />
+            <h3 className="text-sm font-semibold">Active Units</h3>
+          </div>
+          <p className="text-3xl font-bold text-[#0F172A]">
+            {activeUnitsCount}
+          </p>
+        </div>
+
+        <div className="home-card flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3 text-slate-600">
+            <Activity size={20} className="text-emerald-500" />
+            <h3 className="text-sm font-semibold">Coverage Area</h3>
+          </div>
+          <p className="text-3xl font-bold text-[#0F172A]">
+            {agency?.coverage_radius_km}{" "}
+            <span className="text-lg text-slate-500">km</span>
+          </p>
+        </div>
+
+        <div className="home-card flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3 text-slate-600">
+            <AlertTriangle size={20} className="text-orange-500" />
+            <h3 className="text-sm font-semibold">Ongoing Alerts</h3>
+          </div>
+          <p className="text-3xl font-bold text-[#0F172A]">0</p>
+        </div>
+
+        <div className="home-card flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3 text-slate-600">
+            <ShieldAlert size={20} className="text-purple-500" />
+            <h3 className="text-sm font-semibold">Hotline</h3>
+          </div>
+          <p className="text-xl font-bold text-[#0F172A]">
+            {agency?.hotline_no}
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
@@ -2736,10 +4543,13 @@ const VerifyGovCredentials = () => {
     reset,
   } = useForm();
 
-  const submitHandler = () => {};
+  const submitHandler = () => {
+    return;
+  }
+
   return (
     <div>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(submitHandler)}>
         <div>
           <label htmlFor="floating-label">
             <span>Official Id</span>
@@ -2790,7 +4600,6 @@ const VerifyGovCredentials = () => {
 };
 
 export const GovRegister = () => {
-  const [step, setStep] = useState(1);
   return (
     <div>
       <h1>Government Official Registration</h1>
@@ -2798,6 +4607,7 @@ export const GovRegister = () => {
     </div>
   );
 };
+
 export const GovLogin = () => {
   return (
     <div>
