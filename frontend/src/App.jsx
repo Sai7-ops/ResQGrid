@@ -1054,7 +1054,7 @@ const useLogoutUser = () => {
     mutationFn: apiLogoutUser,
     onSuccess: () => {
       navigate("/", { replace: true });
-      toast.error("Logged out successfully");
+      toast.success("Logged out successfully");
     },
     onError: () => toast.error("An error occured while logging out"),
   });
@@ -2514,7 +2514,7 @@ const useLogoutAgency = () => {
     mutationFn: apiLogoutAgency,
     onSuccess: () => {
       navigate("/", { replace: true });
-      toast.error("Logged out successfully");
+      toast.success("Logged out successfully");
     },
     onError: () => toast.error("An error occured while logging out"),
   });
