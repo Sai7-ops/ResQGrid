@@ -2728,10 +2728,72 @@ export const AgencyHome = () => {
   );
 };
 
-export const GovRegister = () => {
+const VerifyGovCredentials = () => {
+  const {
+    handleSubmit,
+    formState: { errors },
+    register,
+    reset,
+  } = useForm();
+
+  const submitHandler = () => {};
   return (
     <div>
-      <h1>Government Registration</h1>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="floating-label">
+            <span>Official Id</span>
+            <input
+              type="text"
+              {...register("official_id", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.official_id ? <p>{errors.official_id}</p> : ""}
+        </div>
+        <div>
+          <label htmlFor="floating-label">
+            <span>Full Name</span>
+            <input
+              type="text"
+              {...register("name", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.name ? <p>{errors.name}</p> : ""}
+        </div>
+        <div>
+          <label htmlFor="floating-label">
+            <span>Aadhaar No.</span>
+            <input
+              type="text"
+              {...register("aadhaar_no", {
+                required: "This field is required!",
+                minLength: {
+                  value: 12,
+                  message: "Aadhaar no. must be exactly 12 digits",
+                },
+                maxLength: {
+                  value: 12,
+                  message: "Aadhaar no. must be exactly 12 digits",
+                },
+              })}
+            />
+          </label>
+          {errors?.aadhaar_no ? <p>{errors.aadhaar_no}</p> : ""}
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export const GovRegister = () => {
+  const [step, setStep] = useState(1);
+  return (
+    <div>
+      <h1>Government Official Registration</h1>
       <Link to="/gov/login">Already registered? then login...</Link>
     </div>
   );

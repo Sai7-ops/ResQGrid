@@ -49,13 +49,13 @@ io.use(async (socket, next) => {
     const cookies = rawCookies.split(";").map((cookie) => cookie.trim());
 
     const userToken = cookies
-      .find((cookie) => cookie.startsWith("user_jwt_token="))
+      .find((cookie) => cookie.startsWith("user_jwt_token"))
       ?.split("=")
       .slice(1)
       .join("=");
 
     const agencyToken = cookies
-      .find((cookie) => cookie.startsWith("agency_jwt_token="))
+      .find((cookie) => cookie.startsWith("agency_jwt_token"))
       ?.split("=")
       .slice(1)
       .join("=");
