@@ -122,10 +122,10 @@ const PORTALS = [
     ring: "rgba(13,148,136,0.10)",
   },
   {
-    key: "gov",
+    key: "govt",
     label: "Government",
     desc: "Oversee regions and coordinate agencies",
-    to: "gov/register",
+    to: "govt/register",
     Icon: Landmark,
     accent: "#4338CA",
     ring: "rgba(67,56,202,0.10)",
