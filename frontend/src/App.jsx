@@ -5830,8 +5830,8 @@ const useRejectRequest = () => {
     mutationFn: apiRejectRequest,
     onSuccess: () =>
       queryClient.invalidateQueries({
-  queryKey: ["pendingRequest", params.pending_id],
-});
+        queryKey: ["pendingRequest", params.pending_id],
+      }),
   });
   return { rejectRequest, isPending };
 };
@@ -5854,8 +5854,8 @@ const useApproveRequest = () => {
     mutationFn: apiApproveRequest,
     onSuccess: () =>
       queryClient.invalidateQueries({
-  queryKey: ["pendingRequest", params.pending_id],
-});
+        queryKey: ["pendingRequest", params.pending_id],
+      }),
   });
   return { approveRequest, isPending };
 };
