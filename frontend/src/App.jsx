@@ -5677,6 +5677,9 @@ const useGetGovtSosAlerts = () => {
 const GovtSosInbox = () => {
   const { sos_alerts, isPending } = useGetGovtSosAlerts();
   const { alerts, setAlerts } = useGovtSocket();
+  const [status, setStatus] = useState("pending");
+  const [disasterType, setDisasterType] = useState("");
+  const [sortBy, setSortBy] = useState("earlier");
 
   useEffect(() => {
     if (sos_alerts) {
@@ -5684,45 +5687,109 @@ const GovtSosInbox = () => {
     }
   }, [sos_alerts, setAlerts]);
 
-  console.log(alerts);
-
   if (isPending) return <h1>Loading...</h1>;
   if (alerts.length === 0) return <h1>No Active SOS at the moment</h1>;
+
+  const sortedAlerts = [...alerts]
+    .filter((alert) => alert.status === status)
+    .filter((alert) => !disasterType || alert.disaster_type === disasterType)
+    .sort((a, b) =>
+      sortBy === "earlier"
+        ? new Date(a.triggered_at) - new Date(b.triggered_at)
+        : new Date(b.triggered_at) - new Date(a.triggered_at),
+    );
+
   return (
     <div>
       <h1>SOS ALERTS</h1>
-      <table>
-        <thead>
-          <tr>
-            <th>SOS ID</th>
-            <th>DISASTER TYPE</th>
-            <th>STATUS</th>
-            <th>TRIGGERED AT</th>
-            <th>USER ID</th>
-          </tr>
-        </thead>
-        <tbody>
-          {alerts.map((alert) => {
-            return (
-              <tr>
-                <td>{alert.sos_id}</td>
-                <td>{alert.disaster_type}</td>
-                <td>{alert.status}</td>
-                <td>{alert.triggered_at}</td>
-                <td>
-                  <button className="btn btn-xs">{alert.user_id}</button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div>
+        <div>
+          <label className="floating-label">
+            <span>STATUS</span>
+            <select
+              className="select select-accent"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              <option value="pending">PENDING</option>
+              <option value="acknowledged">ACKNOWLEDGED</option>
+              <option value="dispatched">DISPATCHED</option>
+              <option value="resolved">RESOLVED</option>
+              <option value="cancelled">CANCELLED</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>DISASTER TYPE</span>
+            <select
+              className="select select-accent"
+              value={disasterType}
+              onChange={(e) => setDisasterType(e.target.value)}
+            >
+              <option value="">ALL</option>
+              <option value="medical_emergency">MEDICAL EMERGENCY</option>
+              <option value="fire">FIRE</option>
+              <option value="flood">FLOOD</option>
+              <option value="cyclone">CYCLONE</option>
+              <option value="earthquake">EARTHQUAKE</option>
+              <option value="crowd_hazard">CROWD HAZARD</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>SORT BY</span>
+            <select
+              className="select select-accent"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="earlier">EARLIER</option>
+              <option value="latest">LATEST</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      {sortedAlerts.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>SOS ID</th>
+              <th>DISASTER TYPE</th>
+              <th>STATUS</th>
+              <th>TRIGGERED AT</th>
+              <th>USER ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedAlerts.map((alert) => {
+              return (
+                <tr>
+                  <td>{alert.sos_id}</td>
+                  <td>{alert.disaster_type}</td>
+                  <td>{alert.status}</td>
+                  <td>{alert.triggered_at}</td>
+                  <td>
+                    <button className="btn btn-xs">{alert.user_id}</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <h1>No results found...</h1>
+      )}
     </div>
   );
 };
 const GovtDispatchesInbox = () => {
   const { sos_dispatches, isPending } = useGetSosDispatches();
   const { dispatches, setDispatches } = useGovtSocket();
+  const [status, setStatus] = useState("EN ROUTE");
+  const [sortBy, setSortBy] = useState("earlier");
+
   useEffect(() => {
     if (sos_dispatches) {
       setDispatches(sos_dispatches);
@@ -5732,9 +5799,45 @@ const GovtDispatchesInbox = () => {
   if (isPending) return <h1>Loading...</h1>;
   if (dispatches.length === 0)
     return <h1>No active dispatches at the moment</h1>;
+
+  let sortedDispatches = [...dispatches]
+    .filter((dispatch) => dispatch.status === status)
+    .sort((a, b) =>
+      sortBy === "earlier"
+        ? new Date(a.assigned_at) - new Date(b.assigned_at)
+        : new Date(b.assigned_at) - new Date(a.assigned_at),
+    );
   return (
     <div>
       <h1>SOS DISPATCHES</h1>
+      <div>
+        <label className="floating-label">
+          <span>STATUS</span>
+          <select
+            className="select select-accent"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="EN ROUTE">EN ROUTE</option>
+            <option value="ON SCENE">ON SCENE</option>
+            <option value="RESOLVED">RESOLVED</option>
+            <option value="CANCELLED">CANCELLED</option>
+          </select>
+        </label>
+      </div>
+      <div>
+        <label className="floating-label">
+          <span>SORT BY</span>
+          <select
+            className="select select-accent"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="earlier">EARLIER</option>
+            <option value="latest">LATEST</option>
+          </select>
+        </label>
+      </div>
       <table>
         <thead>
           <tr>
@@ -5749,7 +5852,7 @@ const GovtDispatchesInbox = () => {
           </tr>
         </thead>
         <tbody>
-          {dispatches.map((dispatch) => {
+          {sortedDispatches.map((dispatch) => {
             return (
               <tr>
                 <td>{dispatch.dispatch_id}</td>
@@ -5794,6 +5897,8 @@ const GovtPendingRequests = () => {
   const { pendingRequests, setPendingRequests } = useGovtSocket();
   const { pending_requests, isPending } = useGetPendingRequests();
   const navigate = useNavigate();
+  const [status, setStatus] = useState("pending");
+  const [sortBy, setSortBy] = useState("earlier");
 
   useEffect(() => {
     if (pending_requests) {
@@ -5803,43 +5908,81 @@ const GovtPendingRequests = () => {
 
   if (isPending) return <h1>Loading...</h1>;
   if (pendingRequests.length === 0) return <h1>No pending requests</h1>;
+
+  const sortedRequests = [...pendingRequests]
+    .filter((request) => request.status === status)
+    .sort((a, b) =>
+      sortBy === "earlier"
+        ? new Date(a.timestamp) - new Date(b.timestamp)
+        : new Date(b.timestamp) - new Date(a.timestamp),
+    );
+
   return (
     <div>
-      <table>
-        <thead>
-          <tr>
-            <th>PENDING ID</th>
-            <th>OFFICIAL ID</th>
-            <th>OFFICIAL NAME</th>
-            <th>OFFICIAL EMAIL</th>
-            <th>DEPARTMENT</th>
-            <th>DESIGNATION</th>
-            <th>REQUEST STATUS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pendingRequests.map((request) => {
-            return (
-              <tr>
-                <td>
-                  <button
-                    onClick={() => navigate(`${request.pending_id}`)}
-                    className="btn btn-xs btn-warning"
-                  >
-                    {request.pending_id}
-                  </button>
-                </td>
-                <td>{request.official_id}</td>
-                <td>{request.name}</td>
-                <td>{request.official_email}</td>
-                <td>{request.department}</td>
-                <td>{request.designation}</td>
-                <td>{request.status}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div>
+        <label className="floating-label">
+          <span>Status</span>
+          <select
+            className="select select-accent"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="pending">PENDING</option>
+            <option value="rejected">REJECTED</option>
+            <option value="assigned">ASSIGNED</option>
+          </select>
+        </label>
+        <label className="floating-label">
+          <span>Sort By</span>
+          <select
+            className="select select-accent"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="earlier">EARLIER</option>
+            <option value="latest">LATEST</option>
+          </select>
+        </label>
+      </div>
+      {sortedRequests.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>PENDING ID</th>
+              <th>OFFICIAL ID</th>
+              <th>OFFICIAL NAME</th>
+              <th>OFFICIAL EMAIL</th>
+              <th>DEPARTMENT</th>
+              <th>DESIGNATION</th>
+              <th>REQUEST STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedRequests.map((request) => {
+              return (
+                <tr>
+                  <td>
+                    <button
+                      onClick={() => navigate(`${request.pending_id}`)}
+                      className="btn btn-xs btn-warning"
+                    >
+                      {request.pending_id}
+                    </button>
+                  </td>
+                  <td>{request.official_id}</td>
+                  <td>{request.name}</td>
+                  <td>{request.official_email}</td>
+                  <td>{request.department}</td>
+                  <td>{request.designation}</td>
+                  <td>{request.status}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <h1>No results found...</h1>
+      )}
     </div>
   );
 };
