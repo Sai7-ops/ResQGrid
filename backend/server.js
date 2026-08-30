@@ -851,7 +851,7 @@ const triggerSos = catchAsync(async (req, res) => {
     );
   }
 
-  console.log(agency);
+  console.log(agencies);
 
   const io = req.app.get("io");
 
