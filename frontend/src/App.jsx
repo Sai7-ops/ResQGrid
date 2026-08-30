@@ -5911,7 +5911,7 @@ const GovtPendingRequest = () => {
       <p>{pendingRequest.department}</p>
       <p>{pendingRequest.designation}</p>
       <p>{pendingRequest.status}</p>
-      <h3>Action taken by: {pendingRequest.action_taker}</h3>
+      <h3>{pendingRequest.action_taker ? `Action taken by: ${pendingRequest.action_take}` : ""}</h3>
       {pendingRequest.status === "rejected" ||
       pendingRequest.status === "assigned" ? (
         ""
