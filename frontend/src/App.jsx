@@ -5372,9 +5372,9 @@ const GovtLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navLinks = [
     { to: "/govt/home", label: "Home", Icon: HomeIcon },
-    { to: "/govt/sosAlerts", label: "Trigger SOS", Icon: Siren },
-    { to: "/govt/sosDispatches", label: "My Alerts", Icon: Ambulance },
-    { to: "/govt/pendingRequests", label: "Inbox", Icon: Bell },
+    { to: "/govt/sosAlerts", label: "SOS Alerts", Icon: Siren },
+    { to: "/govt/sosDispatches", label: "SOS Dispatches", Icon: Ambulance },
+    { to: "/govt/pendingRequests", label: "Pending Requests", Icon: Bell },
   ];
 
   const logoutHandler = () => {
