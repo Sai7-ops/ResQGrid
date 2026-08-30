@@ -825,6 +825,18 @@ const triggerSos = catchAsync(async (req, res) => {
       zone_name,
     ],
   );
+  const room = `agency_${agency.agency_id}`;
+
+  const socketsInRoom = await io.in(room).fetchSockets();
+
+  console.log(
+    `👥 SOCKETS IN ${room}:`,
+    socketsInRoom.map((s) => ({
+      id: s.id,
+      type: s.type,
+      agency_id: s.agency?.agency_id,
+    })),
+  );
   const sos_request = result.rows[0];
   const agencies = await findNearestAgencies(
     sos_request.sos_id,
@@ -857,8 +869,14 @@ const triggerSos = catchAsync(async (req, res) => {
 
   io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
   io.to(`official_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
-  io.to(`official_SUPER_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
-  io.to(`official_USER_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
+  io.to(`official_SUPER_ADMIN_${zone_id}`).emit(
+    "NEW_GOVT_SOS_ALERT",
+    sos_request,
+  );
+  io.to(`official_USER_ADMIN_${zone_id}`).emit(
+    "NEW_GOVT_SOS_ALERT",
+    sos_request,
+  );
 
   agencies.forEach((agency) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
