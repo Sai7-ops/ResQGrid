@@ -186,7 +186,7 @@ io.on("connection", (socket) => {
 
         const dispatch = await pool.query(
           `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status, zone_id, zone_name)
-           VALUES ($1, $2, $3, $4, 'EN ROUTE')
+           VALUES ($1, $2, $3, $4, 'EN ROUTE', $5, $6)
            ON CONFLICT (sos_id, unit_type) DO NOTHING
            RETURNING *`,
           [sos_id, agency_id, unit_type, unit_id, zone_id, zone_name],
