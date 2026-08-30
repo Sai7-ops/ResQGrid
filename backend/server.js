@@ -126,7 +126,7 @@ io.use(async (socket, next) => {
   }
 });
 
-io.on("connection", (socket) => {
+io.on("connection", async(socket) => {
   console.log("🔥🔥🔥 CONNECTION HANDLER REACHED");
   console.log("Socket ID:", socket.id);
 
@@ -136,6 +136,19 @@ io.on("connection", (socket) => {
 
     socket.join(`agency_${agency_id}`);
     socket.join(`agency_${zone_id}`);
+
+    const room = `agency_${agency.agency_id}`;
+
+  const socketsInRoom = await io.in(room).fetchSockets();
+
+  console.log(
+    `👥 SOCKETS IN ${room}:`,
+    socketsInRoom.map((s) => ({
+      id: s.id,
+      type: s.type,
+      agency_id: s.agency?.agency_id,
+    })),
+  );
 
     if (Array.isArray(primary_capabilities_tags)) {
       primary_capabilities_tags.forEach((tag) => {
@@ -825,18 +838,7 @@ const triggerSos = catchAsync(async (req, res) => {
       zone_name,
     ],
   );
-  const room = `agency_${agency.agency_id}`;
-
-  const socketsInRoom = await io.in(room).fetchSockets();
-
-  console.log(
-    `👥 SOCKETS IN ${room}:`,
-    socketsInRoom.map((s) => ({
-      id: s.id,
-      type: s.type,
-      agency_id: s.agency?.agency_id,
-    })),
-  );
+  
   const sos_request = result.rows[0];
   const agencies = await findNearestAgencies(
     sos_request.sos_id,
