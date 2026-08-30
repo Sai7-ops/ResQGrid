@@ -1162,35 +1162,41 @@ const registerOfficial = catchAsync(async (req, res) => {
 
 const loginGovtOfficial = catchAsync(async (req, res) => {
   const { official_id, password } = req.body;
+
   const result1 = await pool.query(
-    `
-    select * from pending_requests 
-    where official_id=$1
-    `,
-    [official_id],
-  );
-
-  if (result1.rowCount === 0)
-    return res
-      .status(404)
-      .json({ message: "You are not registered yet. Register first!" });
-
-  const isMatch = await bcrypt.compare(password, result1.rows[0].password_hash);
-  if (!isMatch) return res.status(400).json({ message: "Invalid Credentials" });
-
-  const status = result1.rows[0].status;
-
-  if (status === "pending" || status === "rejected")
-    return res.status(200).json({ status });
-
-  const result2 = await pool.query(
     `
     select * from government_officials
     where official_id=$1
     `,
     [official_id],
   );
-  const official = result2.rows[0];
+  if (result1.rowCount === 0) {
+    const result2 = await pool.query(
+      `
+    select * from pending_requests 
+    where official_id=$1
+    `,
+      [official_id],
+    );
+
+    if (result2.rowCount === 0)
+      return res
+        .status(404)
+        .json({ message: "You are not registered yet. Register first!" });
+
+    const isMatch = await bcrypt.compare(
+      password,
+      result2.rows[0].password_hash,
+    );
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid Credentials" });
+
+    const status = result2.rows[0].status;
+
+    if (status === "pending" || status === "rejected")
+      return res.status(200).json({ status });
+  }
+  const official = result1.rows[0];
 
   const payload = {
     official_name: official.name,
