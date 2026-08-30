@@ -1170,7 +1170,35 @@ const loginGovtOfficial = catchAsync(async (req, res) => {
     `,
     [official_id],
   );
-  if (result1.rowCount === 0) {
+  if (result1.rowCount > 0) {
+    const official = result1.rows[0];
+    if (!official.is_active) {
+      return res.status(403).json({
+        message: "Your account has been deactivated.",
+      });
+    }
+    const isMatch = await bcrypt.compare(
+      password,
+      result1.rows[0].password_hash,
+    );
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid Credentials" });
+
+    const payload = {
+      official_name: official.name,
+      official_id: official.official_id,
+      zone_id: official.zone_id,
+      role: official.role,
+    };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+    res.cookie("govt_jwt_token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 1000 * 60 * 60 * 2,
+    });
+    return res.status(200).json(official);
+  } else {
     const result2 = await pool.query(
       `
     select * from pending_requests 
@@ -1196,21 +1224,6 @@ const loginGovtOfficial = catchAsync(async (req, res) => {
     if (status === "pending" || status === "rejected")
       return res.status(200).json({ status });
   }
-  const official = result1.rows[0];
-
-  const payload = {
-    official_name: official.name,
-    official_id: official.official_id,
-    zone_id: official.zone_id,
-  };
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
-  res.cookie("govt_jwt_token", token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    maxAge: 1000 * 60 * 60 * 2,
-  });
-  return res.status(200).json(official);
 });
 
 const verifyGovtJWT = (req, res, next) => {
