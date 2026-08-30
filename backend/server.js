@@ -139,7 +139,6 @@ io.on("connection", async (socket) => {
     socket.join(`agency_${agency_id}`);
     socket.join(`agency_${zone_id}`);
 
-
     if (Array.isArray(primary_capabilities_tags)) {
       primary_capabilities_tags.forEach((tag) => {
         const sanitizedTag = tag.trim().replace(/\s+/g, "_").toUpperCase();
@@ -1287,6 +1286,7 @@ const logoutOfficial = catchAsync((req, res) => {
 
 const getGovtSosAlerts = catchAsync(async (req, res) => {
   const { zone_id } = req.official;
+  console.log(zone_id);
   const result = await pool.query(
     `
     select * from sos_requests
@@ -1294,6 +1294,7 @@ const getGovtSosAlerts = catchAsync(async (req, res) => {
     `,
     [zone_id],
   );
+  console.log(result.rows);
   return res.status(200).json(result.rows);
 });
 
