@@ -5838,36 +5838,40 @@ const GovtDispatchesInbox = () => {
           </select>
         </label>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>DISPATCH ID</th>
-            <th>SOS ID</th>
-            <th>AGENCY ID</th>
-            <th>UNIT ID</th>
-            <th>UNIT TYPE</th>
-            <th>STATUS</th>
-            <th>ASSIGNED AT</th>
-            <th>UPDATED AT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedDispatches.map((dispatch) => {
-            return (
-              <tr>
-                <td>{dispatch.dispatch_id}</td>
-                <td>{dispatch.sos_id}</td>
-                <td>{dispatch.agency_id}</td>
-                <td>{dispatch.unit_id}</td>
-                <td>{dispatch.unit_type}</td>
-                <td>{dispatch.status}</td>
-                <td>{dispatch.assigned_at}</td>
-                <td>{dispatch.updated_at}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {sortedDispatches.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>DISPATCH ID</th>
+              <th>SOS ID</th>
+              <th>AGENCY ID</th>
+              <th>UNIT ID</th>
+              <th>UNIT TYPE</th>
+              <th>STATUS</th>
+              <th>ASSIGNED AT</th>
+              <th>UPDATED AT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedDispatches.map((dispatch) => {
+              return (
+                <tr>
+                  <td>{dispatch.dispatch_id}</td>
+                  <td>{dispatch.sos_id}</td>
+                  <td>{dispatch.agency_id}</td>
+                  <td>{dispatch.unit_id}</td>
+                  <td>{dispatch.unit_type}</td>
+                  <td>{dispatch.status}</td>
+                  <td>{dispatch.assigned_at}</td>
+                  <td>{dispatch.updated_at}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <h1>No results found...</h1>
+      )}
     </div>
   );
 };
