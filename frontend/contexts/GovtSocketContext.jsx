@@ -4,7 +4,7 @@ import { io } from "socket.io-client";
 
 const GovtSocketContext = createContext();
 
-export const UserSocketProvider = ({ children }) => {
+export const GovtSocketProvider = ({ children }) => {
   const [govtSocket, setGovtSocket] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [dispatches, setDispatches] = useState([]);
