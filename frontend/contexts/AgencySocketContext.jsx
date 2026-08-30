@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { io } from "socket.io-client";
 
 const AgencySocketContext = createContext();
@@ -34,6 +35,10 @@ export const AgencySocketProvider = ({ children }) => {
         sos_id: payload.sos_id,
         user_id: payload.user_id,
       });
+
+      toast.error("New SOS Alert", {
+        icon: "🚨"
+      })
 
       setSosAlerts((prevAlerts) => {
         const alreadyExists = prevAlerts.some(

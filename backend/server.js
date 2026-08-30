@@ -165,20 +165,12 @@ io.on("connection", (socket) => {
     socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
       const { sos_id, unit_type, unit_id, agency_id } = payload;
       try {
-        const dispatch = await pool.query(
-          `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status)
-           VALUES ($1, $2, $3, $4, 'EN ROUTE')
-           ON CONFLICT (sos_id, unit_type) DO NOTHING
-           RETURNING *`,
-          [sos_id, agency_id, unit_type, unit_id],
-        );
-
         const sos_request = await pool.query(
           `
         update sos_requests
         set status='dispatched'
         where sos_id=$1 AND status NOT IN ('resolved', 'cancelled')
-        returning user_id
+        returning *
         `,
           [sos_id],
         );
@@ -189,6 +181,16 @@ io.on("connection", (socket) => {
             message: "SOS not found or already resolved/cancelled.",
           });
         }
+
+        const { zone_id, zone_name } = sos_request.rows[0];
+
+        const dispatch = await pool.query(
+          `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status, zone_id, zone_name)
+           VALUES ($1, $2, $3, $4, 'EN ROUTE')
+           ON CONFLICT (sos_id, unit_type) DO NOTHING
+           RETURNING *`,
+          [sos_id, agency_id, unit_type, unit_id, zone_id, zone_name],
+        );
 
         const user_id = sos_request.rows[0].user_id;
 
@@ -230,6 +232,40 @@ io.on("connection", (socket) => {
           claimed_by_agency_id: agency_id,
         });
 
+        io.to(`official_SUPER_ADMIN_${zone_id}`).emit("NEW_SOS_DISPATCH", {
+          sos_id,
+          dispatch_id: dispatchData.dispatch_id,
+          agency_name,
+          unit_type,
+          unit_name,
+          unit_id,
+          unit_location,
+          status: dispatchData.status,
+          assigned_at: dispatchData.assigned_at,
+        });
+        io.to(`official_ADMIN_${zone_id}`).emit("NEW_SOS_DISPATCH", {
+          sos_id,
+          dispatch_id: dispatchData.dispatch_id,
+          agency_name,
+          unit_type,
+          unit_name,
+          unit_id,
+          unit_location,
+          status: dispatchData.status,
+          assigned_at: dispatchData.assigned_at,
+        });
+        io.to(`official_AGENCY_ADMIN_${zone_id}`).emit("NEW_SOS_DISPATCH", {
+          sos_id,
+          dispatch_id: dispatchData.dispatch_id,
+          agency_name,
+          unit_type,
+          unit_name,
+          unit_id,
+          unit_location,
+          status: dispatchData.status,
+          assigned_at: dispatchData.assigned_at,
+        });
+
         io.to(`user_${user_id}`).emit("CITIZEN_UNIT_EN_ROUTE", {
           sos_id,
           dispatch_id: dispatchData.dispatch_id,
@@ -257,11 +293,11 @@ io.on("connection", (socket) => {
     if (zone_id) socket.join(`user_${zone_id}`);
   }
 
-  if(socket.type === "govt"){
-    const {official_id, zone_id, role} = socket.official;
+  if (socket.type === "govt") {
+    const { official_id, zone_id, role } = socket.official;
 
-    socket.join(`official_${official_id}`);
-    if(zone_id) socket.join(`official_${role}_${zone_id}`)
+    socket.join(`official_${role}_${official_id}`);
+    if (zone_id) socket.join(`official_${role}_${zone_id}`);
   }
 
   socket.on("disconnect", () => {
@@ -764,17 +800,30 @@ const triggerSos = catchAsync(async (req, res) => {
   const { latitude, longitude, disaster_type, is_victim, description } =
     req.body;
   const user_id = req.user.user_id;
+  const { zone_id, zone_name } = getBhopalZone(longitude, latitude);
   const result = await pool.query(
-    `insert into sos_requests(user_id, triggered_location, disaster_type, is_victim, description) values
-    ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, $4, $5,  $6) RETURNING sos_id,
+    `insert into sos_requests(user_id, triggered_location, disaster_type, is_victim, description, zone_id, zone_name) values
+    ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, $4, $5,  $6, $7, $8) RETURNING sos_id,
     user_id,
     triggered_at,
     status,
     disaster_type,
     is_victim,
     description,
-    ST_AsGeoJSON(triggered_location)::json AS location`,
-    [user_id, longitude, latitude, disaster_type, is_victim, description],
+    ST_AsGeoJSON(triggered_location)::json AS location,
+    zone_id,
+    zone_name
+    `,
+    [
+      user_id,
+      longitude,
+      latitude,
+      disaster_type,
+      is_victim,
+      description,
+      zone_id,
+      zone_name,
+    ],
   );
   const sos_request = result.rows[0];
   const agencies = await findNearestAgencies(
@@ -790,6 +839,9 @@ const triggerSos = catchAsync(async (req, res) => {
   const io = req.app.get("io");
 
   io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
+  io.to(`official_ADMIN_${zone_id}`).emit("NEW_SOS_ALERT", sos_request);
+  io.to(`official_SUPER_ADMIN_${zone_id}`).emit("NEW_SOS_ALERT", sos_request);
+  io.to(`official_USER_ADMIN_${zone_id}`).emit("NEW_SOS_ALERT", sos_request);
 
   agencies.forEach((agency) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
@@ -901,7 +953,7 @@ export const findNearestAgencies = async (
   return result.rows;
 };
 
-const logoutUser = catchAsync(async (req, res) => {
+const logoutUser = catchAsync((req, res) => {
   res.clearCookie("user_jwt_token", {
     httpOnly: true,
     secure: true,
@@ -913,7 +965,7 @@ const logoutUser = catchAsync(async (req, res) => {
   });
 });
 
-const logoutAgency = catchAsync(async (req, res) => {
+const logoutAgency = catchAsync((req, res) => {
   res.clearCookie("agency_jwt_token", {
     httpOnly: true,
     secure: true,
@@ -1081,12 +1133,27 @@ const registerOfficial = catchAsync(async (req, res) => {
   const { official_id, latitude, longitude, password } = req.body;
   const password_hash = await bcrypt.hash(password, 10);
   const { zone_id, zone_name } = getBhopalZone(longitude, latitude);
-  await pool.query(
+  const result = await pool.query(
     `
       insert into pending_requests(official_id, zone_id, zone_name, password_hash)
-      values($1, $2, $3, $4)
+      values($1, $2, $3, $4) RETURNING *
       `,
     [official_id, zone_id, zone_name, password_hash],
+  );
+  const pending_request = result.rows[0];
+  const result2 = await pool.query(
+    `
+    select p.pending_id, p.official_id, p.status, o.* from
+    pending_requests p join mock_gov_officials o on p.official_id=o.official_id
+    where pending_id=$1 
+    `,
+    [pending_request.pending_id],
+  );
+  const detailed_pending_request = result2.rows[0];
+  const io = req.app.get("io");
+  io.to(`official_SUPER_ADMIN_${zone_id}`).emit(
+    "NEW_PENDING_REQUEST",
+    detailed_pending_request,
   );
   res.status(200).json({ message: "Sent for verification" });
 });
@@ -1126,6 +1193,7 @@ const loginGovtOfficial = catchAsync(async (req, res) => {
   const payload = {
     official_name: official.name,
     official_id: official.official_id,
+    zone_id: official.zone_id,
   };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
   res.cookie("govt_jwt_token", token, {
@@ -1135,6 +1203,150 @@ const loginGovtOfficial = catchAsync(async (req, res) => {
     maxAge: 1000 * 60 * 60 * 2,
   });
   return res.status(200).json(official);
+});
+
+const verifyGovtJWT = (req, res, next) => {
+  try {
+    const token = req.cookies.govt_jwt_token;
+    if (!token) {
+      return res
+        .status(401)
+        .json({ message: "Access denied. No token provided" });
+    }
+    const decodedPayload = jwt.verify(token, JWT_SECRET);
+    req.official = decodedPayload;
+    return next();
+  } catch (err) {
+    return res.status(401).json({
+      message: "Invalid or expired token",
+    });
+  }
+};
+
+const getGovtOfficial = catchAsync(async (req, res) => {
+  const { official_id } = req.official;
+  const result = await pool.query(
+    `
+    select * from government_officials
+    where official_id=$1
+    `,
+    [official_id],
+  );
+  if (result.rowCount === 0)
+    return res.status(404).json({ message: "Access denied!" });
+  const official = result.rows[0];
+  if (!official.is_active)
+    return res.status(400).json({ message: "Access denied!" });
+  return res.status(200).json(official);
+});
+
+const logoutOfficial = catchAsync((req, res) => {
+  res.clearCookie("govt_jwt_token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+  });
+
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
+});
+
+const getGovtSosAlerts = catchAsync(async (req, res) => {
+  const { zone_id } = req.official;
+  const result = await pool.query(
+    `
+    select * from sos_requests
+    where zone_id=$1
+    `,
+    [zone_id],
+  );
+  return res.status(200).json(result.rows);
+});
+
+const getGovtDispatches = catchAsync(async (req, res) => {
+  const { zone_id } = req.official;
+  const result = await pool.query(
+    `
+    select * from sos_dispatches
+    where zone_id=$1
+    `,
+    [zone_id],
+  );
+  return res.status(200).json(result.rows);
+});
+
+const getPendingRequests = catchAsync(async (req, res) => {
+  const { zone_id } = req.official;
+  const result = await pool.query(
+    `
+    select p.pending_id, p.official_id, p.status, o.* from
+    pending_requests p join mock_gov_officials o on p.official_id=o.official_id
+    where zone_id=$1 
+    `,
+    [zone_id],
+  );
+  return res.status(200).json(result.rows);
+});
+
+const rejectRequest = catchAsync(async (req, res) => {
+  const { name, pending_id } = req.body;
+  await pool.query(
+    `
+    update pending_requests
+    set status='rejected',
+    action_taker=$1
+    where pending_id=$2
+    `,
+    [name, pending_id],
+  );
+});
+
+const approveRequest = catchAsync(async (req, res) => {
+  const { name, pending_id, role } = req.body;
+  await pool.query(
+    `
+    update pending_requests
+    set status='approved',
+    action_taker=$1
+    where pending_id=$2
+    `,
+    [name, pending_id],
+  );
+
+  const result = await pool.query(
+    `
+    select *
+    from pending_requests p join mock_gov_officials o
+    on p.official_id=o.official_id
+    where pending_id=$1
+    `,
+    [pending_id],
+  );
+
+  const official = result.rows[0];
+
+  await pool.query(
+    `
+    insert into government_officials(official_id, name, designation, role, mobile_no, email, aadhaar_no, password_hash, state, zone_id, zone_name)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `,
+    [
+      official.official_id,
+      official.name,
+      official.designation,
+      role,
+      official.mobile_no,
+      official.official_email,
+      official.aadhaar_no,
+      official.password_hash,
+      official.state,
+      official.zone_id,
+      official.zone_name,
+    ],
+  );
+
+  return res.status(200).json({ message: "Successful" });
 });
 
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
@@ -1162,10 +1374,17 @@ app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
 app.post("/api/user/logout", verifyUserJWT, logoutUser);
+app.get("/api/govt/sosAlerts", verifyAgencyJWT, getGovtSosAlerts);
+app.get("/api/govt/sosDispatches", verifyGovtJWT, getGovtDispatches);
+app.get("/api/govt/govtOfficial", verifyGovtJWT, getGovtOfficial);
+app.get("/api/govt/pendingRequests", verifyGovtJWT, getPendingRequests);
 app.post("/api/govt/verifyCredentials", verifyGovtCredentials);
 app.post("/api/govt/verifyOtp", verifyGovtOtp);
 app.post("/api/govt/register", registerOfficial);
 app.post("/api/govt/login", loginGovtOfficial);
+app.post("/api/govt/logout", verifyGovtJWT, logoutOfficial);
+app.post("/api/govt/rejectRequest", verifyGovtJWT, rejectRequest);
+app.post("/api/govt/approveRequest", verifyGovtJWT, approveRequest);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);

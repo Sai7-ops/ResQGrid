@@ -51,7 +51,9 @@ export const UserSocketProvider = ({ children }) => {
 
         return [payload, ...prevData];
       });
-      toast.success(`${payload.unit_type} is on the way!`);
+      toast.success(`${payload.unit_type} is on the way!`, {
+        icon: "🚑"
+      });
     });
 
     setUserSocket(socketInstance);

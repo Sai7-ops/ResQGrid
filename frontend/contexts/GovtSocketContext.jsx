@@ -8,6 +8,7 @@ export const UserSocketProvider = ({ children }) => {
   const [govtSocket, setGovtSocket] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [dispatches, setDispatches] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   useEffect(() => {
     const socketInstance = io("https://resqgrid-x51v.onrender.com", {
@@ -27,32 +28,26 @@ export const UserSocketProvider = ({ children }) => {
       console.log("🟡 SOCKET DISCONNECTED:", reason);
     });
 
-    // socketInstance.on("SOS_ALERT_TRIGGERED", (payload) => {
-    //   setAlertStatus(payload);
-    // });
+    socketInstance.on("NEW_SOS_ALERT", (payload) => {
+      setAlerts((prevAlerts) => [...prevAlerts, payload]);
+      toast.error("New SOS Alert", {
+        icon: "⚠️",
+      });
+    });
 
-    // socketInstance.on("SOS_ALERT_ACKNOWLEDGED", (payload) => {
-    //   if (payload.success) {
-    //     setAlertStatus((prevData) => {
-    //       return { ...prevData, status: "acknowledged" };
-    //     });
-    //   }
-    // });
+    socketInstance.on("NEW_SOS_DISPATCH", (payload) => {
+      setDispatches((prevData) => [...prevData, payload]);
+      toast.success("New SOS Dispatch", {
+        icon: "🚑",
+      });
+    });
 
-    // socketInstance.on("CITIZEN_UNIT_EN_ROUTE", (payload) => {
-    //   setDispatchData((prevData) => {
-    //     const alreadyExists = prevData.some(
-    //       (data) => data.dispatch_id === payload.dispatch_id,
-    //     );
-
-    //     if (alreadyExists) {
-    //       return prevData;
-    //     }
-
-    //     return [payload, ...prevData];
-    //   });
-    //   toast.success(`${payload.unit_type} is on the way!`);
-    // });
+    socketInstance.on("NEW_PENDING_REQUEST", (payload) => {
+      setPendingRequests((prevRequests) => [...prevRequests, payload]);
+      toast.error("New Pending Request", {
+        icon: "🔔",
+      });
+    });
 
     setGovtSocket(socketInstance);
 
@@ -68,7 +63,9 @@ export const UserSocketProvider = ({ children }) => {
         alerts,
         setAlerts,
         dispatches,
-        setDispatches
+        setDispatches,
+        pendingRequests,
+        setPendingRequests,
       }}
     >
       {children}

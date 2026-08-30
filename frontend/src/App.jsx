@@ -27,6 +27,10 @@ import {
   useUserSocket,
 } from "../contexts/UserSocketContext";
 import {
+  GovtSocketProvider,
+  useGovtSocket,
+} from "../contexts/GovtSocketContext";
+import {
   useMutation,
   QueryClient,
   QueryClientProvider,
@@ -64,9 +68,7 @@ import {
   Inbox,
   Activity,
   AlertTriangle,
-  Zap,
   CheckCircle2,
-  ChevronRight,
   ShieldAlert,
   BarChart3,
   Siren,
@@ -75,11 +77,12 @@ import {
   ArrowUpRight,
   Download,
   Home as HomeIcon,
-  Calendar,
   AlertCircle,
   Menu,
   X,
   LogOut,
+  Bell,
+  Ambulance,
 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -288,6 +291,17 @@ function App() {
               <Route path="inbox" element={<UserInbox />} />
             </Route>
           </Route>
+          <Route element={<GovtRouteProtector />}>
+            <Route path="/govt" element={<GovtLayout />} />
+            <Route path="home" element={<GovtHome />} />
+            <Route path="sosAlerts" element={<GovtSosInbox />} />
+            <Route path="sosDispatches" element={<GovtDispatchesInbox />} />
+            <Route path="pendingRequests" element={<GovtPendingRequests />} />
+            <Route
+              path="pendingRequests/:pending_id"
+              element={<GovtPendingRequest />}
+            />
+          </Route>
         </Routes>
       </BrowserRouter>
       <ReactQueryDevtools initialIsOpen={false} />
@@ -483,6 +497,67 @@ export const Home = () => {
       </footer>
     </div>
   );
+};
+
+const apiGetOfficial = async () => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/govt/govtOfficial`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGovtAuth = () => {
+  const {
+    data: official,
+    isPending,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["govtOfficial"],
+    queryFn: apiGetOfficial,
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+  });
+  return {
+    official,
+    isPending,
+    isAuthenticated: !isError && Boolean(official),
+    error,
+    isError,
+  };
+};
+
+const GovtRouteProtector = () => {
+  const { isPending, isAuthenticated, isError, error } = useGovtAuth();
+
+  useEffect(() => {
+    if (isError) {
+      toast.error(error?.response?.data?.message || "Something went wrong");
+    }
+  }, [isError, error]);
+
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#2563EB] bg-blue-50">
+            <span className="text-2xl font-bold">🇮🇳</span>
+          </div>
+          <h1 className="text-xl font-semibold text-slate-800">
+            Verifying Government Portal
+          </h1>
+          <div className="mt-6 flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#2563EB]"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  return <Outlet />;
 };
 
 const AgencyRouteProtector = () => {
@@ -5265,6 +5340,594 @@ export const GovtLogin = () => {
             </div>
           </form>
         </>
+      )}
+    </div>
+  );
+};
+
+const apiLogoutOfficial = async () => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/logoutOfficial`,
+    null,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useLogoutOfficial = () => {
+  const { mutate: logoutOfficial, isPending } = useMutation({
+    mutationFn: apiLogoutOfficial,
+    onSuccess: () => toast.success("Logged out successfully!"),
+    onError: (err) => toast.error(err.response?.data?.message),
+  });
+  return { logoutOfficial, isPending };
+};
+
+const GovtLayout = () => {
+  const { logoutOfficial, isPending } = useLogoutOfficial();
+  const layoutRef = useRef(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navLinks = [
+    { to: "/govt/home", label: "Home", Icon: HomeIcon },
+    { to: "/govt/sosAlerts", label: "Trigger SOS", Icon: Siren },
+    { to: "/govt/sosDispatches", label: "My Alerts", Icon: Ambulance },
+    { to: "/govt/pendingRequests", label: "Inbox", Icon: Bell },
+  ];
+
+  const logoutHandler = () => {
+    logoutOfficial();
+  };
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".ul-header",
+        { opacity: 0, y: -20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+      );
+      gsap.fromTo(
+        ".ul-nav-item",
+        { opacity: 0, x: -10 },
+        {
+          opacity: 1,
+          x: 0,
+          duration: 0.4,
+          stagger: 0.05,
+          ease: "power2.out",
+          delay: 0.2,
+        },
+      );
+      gsap.fromTo(
+        ".ul-content",
+        { opacity: 0, y: 15 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power3.out", delay: 0.3 },
+      );
+    }, layoutRef);
+    return () => ctx.revert();
+  }, []);
+  return (
+    <GovtSocketProvider>
+      <div
+        ref={layoutRef}
+        className="relative z-0 min-h-screen overflow-x-hidden bg-[#F8FAFC] text-[#0F172A]"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+            maskImage:
+              "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(37,99,235,0.04), transparent 70%)",
+          }}
+        />
+
+        <header className="ul-header relative z-30 border-b border-[#E2E8F0] bg-white shadow-sm">
+          <div className="bg-[#0F172A]">
+            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-slate-300 sm:px-6">
+              <span>Government Portal</span>
+              <span>Official Platform</span>
+            </div>
+          </div>
+
+          <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+            <div>
+              <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: USER_ACCENT }}
+                />
+                Government Portal
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-[#0F172A]">
+                ResQGrid <span style={{ color: USER_ACCENT }}>Government</span>
+              </h1>
+            </div>
+
+            <div className="hidden items-center gap-2 lg:flex">
+              {navLinks.map(({ to, label, Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `ul-nav-item flex items-center gap-2 rounded-lg px-4 py-2.5 text-[0.88rem] font-semibold transition-all ${
+                      isActive
+                        ? "bg-[#2563EB] text-white shadow-md shadow-blue-900/10"
+                        : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                    }`
+                  }
+                >
+                  <Icon size={16} strokeWidth={2.5} />
+                  {label}
+                </NavLink>
+              ))}
+              <button
+                onClick={logoutHandler}
+                disabled={isPending}
+                className="ul-nav-item ml-2 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-[0.88rem] font-semibold text-red-600 transition-all hover:bg-red-100 disabled:opacity-50"
+              >
+                {isPending ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563EB] lg:hidden"
+              aria-label="Toggle Navigation Menu"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </nav>
+        </header>
+
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        <aside
+          className={`fixed top-0 right-0 z-60 flex h-full w-72 flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
+            isMobileMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+            <div>
+              <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: USER_ACCENT }}
+                />
+                Government Portal
+              </div>
+              <h2 className="text-base font-bold text-slate-900">
+                ResQGrid <span style={{ color: USER_ACCENT }}>Citizen</span>
+              </h2>
+            </div>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close menu"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4">
+            {navLinks.map(({ to, label, Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
+                    isActive
+                      ? "bg-[#2563EB] text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`
+                }
+              >
+                <Icon size={18} strokeWidth={2.2} />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+
+          <div className="border-t border-slate-100 p-4">
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                logoutHandler();
+              }}
+              disabled={isPending}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+            >
+              <LogOut size={16} />
+              {isPending ? "Logging out..." : "Logout"}
+            </button>
+          </div>
+        </aside>
+
+        <main className="ul-content relative z-10 mx-auto min-h-[calc(100vh-180px)] max-w-7xl px-6 py-8">
+          <Outlet />
+        </main>
+
+        <footer className="relative z-10 border-t border-[#E2E8F0] bg-white">
+          <div className="mx-auto max-w-7xl px-6 py-5 text-center text-sm text-[#64748B]">
+            © ResQGrid Disaster Management Platform. All Rights Reserved.
+          </div>
+        </footer>
+      </div>
+    </GovtSocketProvider>
+  );
+};
+
+const GovtHome = () => {
+  const { official } = useGovtAuth();
+  return (
+    <div>
+      <h1>Welcome back, {official.name}</h1>
+      <p>Role: {official.role}</p>
+      <p>Designation: {official.designation}</p>
+      <p>Zone: {official.zone_name}</p>
+      <p>State: {official.state}</p>
+    </div>
+  );
+};
+
+const apiGetSosDispatches = async () => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/govt/sosDispatches`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetSosDispatches = () => {
+  const { official } = useGovtAuth();
+  const { data: sos_dispatches, isPending } = useQuery({
+    queryKey: ["sosDispatches", official.zone_id],
+    queryFn: apiGetSosDispatches,
+  });
+  return { sos_dispatches, isPending };
+};
+
+const apiGetGovtSosAlerts = async () => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/govt/sosAlerts`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetGovtSosAlerts = () => {
+  const { official } = useGovtAuth();
+  const { data: sos_alerts, isPending } = useQuery({
+    queryKey: ["sosAlerts", official.zone_id],
+    queryFn: apiGetGovtSosAlerts,
+  });
+  return { sos_alerts, isPending };
+};
+
+const GovtSosInbox = () => {
+  const { sos_alerts, isPending } = useGetGovtSosAlerts();
+  const { alerts, setAlerts } = useGovtSocket();
+
+  useEffect(() => {
+    setAlerts(sos_alerts);
+  }, [sos_alerts, setAlerts]);
+
+  if (isPending) return <h1>Loading...</h1>;
+  if (alerts.length === 0) return <h1>No Active SOS at the moment</h1>;
+  return (
+    <div>
+      <h1>SOS ALERTS</h1>
+      <table>
+        <thead>
+          <th>SOS ID</th>
+          <th>DISASTER TYPE</th>
+          <th>STATUS</th>
+          <th>TRIGGERED AT</th>
+          <th>USER ID</th>
+        </thead>
+        <tbody>
+          {alerts.map((alert) => {
+            return (
+              <tr>
+                <td>{alert.sos_id}</td>
+                <td>{alert.disaster_type}</td>
+                <td>{alert.status}</td>
+                <td>{alert.triggered_at}</td>
+                <td>
+                  <button className="btn btn-xs">{alert.user_id}</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+const GovtDispatchesInbox = () => {
+  const { sos_dispatches, isPending } = useGetSosDispatches();
+  const { dispatches, setDispatches } = useGovtSocket();
+  useEffect(() => {
+    setDispatches(sos_dispatches);
+  }, [sos_dispatches, setDispatches]);
+
+  if (isPending) return <h1>Loading...</h1>;
+  if (dispatches.length === 0)
+    return <h1>No active dispatches at the moment</h1>;
+  return (
+    <div>
+      <h1>SOS DISPATCHES</h1>
+      <table>
+        <thead>
+          <th>DISPATCH ID</th>
+          <th>SOS ID</th>
+          <th>AGENCY ID</th>
+          <th>UNIT ID</th>
+          <th>UNIT TYPE</th>
+          <th>STATUS</th>
+          <th>ASSIGNED AT</th>
+          <th>UPDATED AT</th>
+        </thead>
+        <tbody>
+          {dispatches.map((dispatch) => {
+            return (
+              <tr>
+                <td>{dispatch.dispatch_id}</td>
+                <td>{dispatch.sos_id}</td>
+                <td>{dispatch.agency_id}</td>
+                <td>{dispatch.unit_id}</td>
+                <td>{dispatch.unit_type}</td>
+                <td>{dispatch.status}</td>
+                <td>{dispatch.assigned_at}</td>
+                <td>{dispatch.updated_at}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const apiGetPendingRequests = async () => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/govt/pendingRequests`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetPendingRequests = () => {
+  const { official } = useGovtAuth();
+  const { data: pending_requests, isPending } = useQuery({
+    queryKey: ["pendingRequests", official.zone_id],
+    queryFn: apiGetPendingRequests,
+  });
+
+  return { pending_requests, isPending };
+};
+
+const GovtPendingRequests = () => {
+  const { pendingRequests, setPendingRequests } = useGovtSocket();
+  const { pending_requests, isPending } = useGetPendingRequests();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setPendingRequests(pending_requests);
+  }, [pending_requests, setPendingRequests]);
+
+  if (isPending) return <h1>Loading...</h1>;
+  if (pendingRequests.length === 0) return <h1>No pending requests</h1>;
+  return (
+    <div>
+      <table>
+        <thead>
+          <th>PENDING ID</th>
+          <th>OFFICIAL ID</th>
+          <th>OFFICIAL NAME</th>
+          <th>OFFICIAL EMAIL</th>
+          <th>DEPARTMENT</th>
+          <th>DESIGNATION</th>
+          <th>REQUEST STATUS</th>
+        </thead>
+        <tbody>
+          {pendingRequests.map((request) => {
+            return (
+              <tr>
+                <td>
+                  <button
+                    onClick={() => navigate(`${request.pending_id}`)}
+                    className="btn btn-xs btn-warning"
+                  >
+                    {request.pending_id}
+                  </button>
+                </td>
+                <td>{request.official_id}</td>
+                <td>{request.name}</td>
+                <td>{request.official_email}</td>
+                <td>{request.department}</td>
+                <td>{request.designation}</td>
+                <td>{request.status}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const apiGetPendingRequest = async (pending_id) => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/govt/pendingRequest/${pending_id}`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetPendingRequest = () => {
+  const params = useParams();
+  const { pending_id } = params;
+  const { data: pendingRequest, isPending } = useQuery({
+    queryKey: ["pendingRequest", pending_id],
+    queryFn: apiGetPendingRequest,
+  });
+  return { pendingRequest, isPending };
+};
+
+const apiRejectRequest = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/rejectRequest/`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useRejectRequest = () => {
+  const queryClient = useQueryClient();
+  const params = useParams();
+  const { mutate: rejectRequest, isPending } = useMutation({
+    mutationFn: apiRejectRequest,
+    onSuccess: () =>
+      queryClient.invalidateQueries(["pendingrequest", params.pending_id]),
+  });
+  return { rejectRequest, isPending };
+};
+
+const apiApproveRequest = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/approveRequest`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useApproveRequest = () => {
+  const queryClient = useQueryClient();
+  const params = useParams();
+  const { mutate: approveRequest, isPending } = useMutation({
+    mutationFn: apiApproveRequest,
+    onSuccess: () =>
+      queryClient.invalidateQueries(["pendingrequest", params.pending_id]),
+  });
+  return { approveRequest, isPending };
+};
+
+const GovtPendingRequest = () => {
+  const { official } = useGovtAuth();
+  const { name } = official;
+  const { pendingRequest, isPending } = useGetPendingRequest();
+  const { rejectRequest, isPending: rejecting } = useRejectRequest();
+  const { approveRequest, isPending: approving } = useApproveRequest();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm();
+
+  if (isPending) return <h1>Loading...</h1>;
+
+  const rejectHandler = () => {
+    const pending_id = pendingRequest.pending_id;
+    const payload = {
+      pending_id,
+      name,
+    };
+    rejectRequest(payload, {
+      onSuccess: () => toast.success("Action executed"),
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
+  };
+
+  const approveHandler = (data) => {
+    const payload = {
+      pending_id: pendingRequest.pending_id,
+      role: data.role,
+      name,
+    };
+    approveRequest(payload, {
+      onSuccess: () => toast.success("Action executed"),
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
+  };
+
+  return (
+    <div>
+      <h1>{pendingRequest.pending_id}</h1>
+      <p>{pendingRequest.official_id}</p>
+      <p>{pendingRequest.name}</p>
+      <p>{pendingRequest.official_email}</p>
+      <p>{pendingRequest.department}</p>
+      <p>{pendingRequest.designation}</p>
+      <p>{pendingRequest.status}</p>
+      <h3>Action taken by: {pendingRequest.action_taker}</h3>
+      {pendingRequest.status === "rejected" ||
+      pendingRequest.status === "approved" ? (
+        ""
+      ) : (
+        <div>
+          <button
+            disabled={rejecting}
+            onClick={rejectHandler}
+            className="btn btn-warning"
+          >
+            REJECT
+          </button>
+          <form onSubmit={handleSubmit(approveHandler)}>
+            <div>
+              <label className="floating-label">
+                <span>ASSIGN A ROLE</span>
+                <select
+                  {...register("role", {
+                    required: "This field is required",
+                  })}
+                >
+                  <option value=""></option>
+                  <option value="SUPER_ADMIN">SUPER ADMIN</option>
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="USER_ADMIN">USER ADMIN</option>
+                  <option value="AGENCY_ADMIN">AGENCY ADMIN</option>
+                </select>
+              </label>
+              {errors?.role ? <p>{errors.role.message}</p> : ""}
+            </div>
+            <button disabled={approving} className="btn btn-success">
+              APPROVE
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );
