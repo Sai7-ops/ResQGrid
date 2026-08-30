@@ -912,14 +912,7 @@ const AgencySosInbox = () => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (Array.isArray(sos_alerts)) {
-      setSosAlerts((prevAlerts) => {
-        const map = new Map();
-        sos_alerts.forEach((alert) => map.set(alert.sos_id, alert));
-        (prevAlerts || []).forEach((alert) => map.set(alert.sos_id, alert));
-        return Array.from(map.values());
-      });
-    }
+    if (sos_alerts) setSosAlerts(sos_alerts);
   }, [sos_alerts, setSosAlerts]);
 
   const handleClaimSos = ({ unit_id, sos_id, unit_type, agency_id }) => {

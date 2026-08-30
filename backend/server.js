@@ -836,6 +836,21 @@ const triggerSos = catchAsync(async (req, res) => {
       message: "SOS recorded but no agencies are currently available",
     });
 
+  for (const agency of agencies) {
+    await pool.query(
+      `INSERT INTO agency_sos_inbox 
+         (sos_id, agency_id, matched_capabilities, distance_meters)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (agency_id, sos_id) DO NOTHING`,
+      [
+        sos_request.sos_id,
+        agency.agency_id,
+        agency.matched_tags,
+        agency.distance_meters,
+      ],
+    );
+  }
+
   const io = req.app.get("io");
 
   io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
@@ -857,21 +872,6 @@ const triggerSos = catchAsync(async (req, res) => {
       distance_meters: agency.distance_meters,
     });
   });
-
-  for (const agency of agencies) {
-    await pool.query(
-      `INSERT INTO agency_sos_inbox 
-         (sos_id, agency_id, matched_capabilities, distance_meters)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (agency_id, sos_id) DO NOTHING`,
-      [
-        sos_request.sos_id,
-        agency.agency_id,
-        agency.matched_tags,
-        agency.distance_meters,
-      ],
-    );
-  }
 
   res.status(200).json({
     message: "Agencies have been notified. Will be arriving shortly",
