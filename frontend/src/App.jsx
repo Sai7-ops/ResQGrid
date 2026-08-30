@@ -5632,6 +5632,8 @@ const GovtSosInbox = () => {
     }
   }, [sos_alerts, setAlerts]);
 
+  console.log(alerts);
+
   if (isPending) return <h1>Loading...</h1>;
   if (alerts.length === 0) return <h1>No Active SOS at the moment</h1>;
   return (
@@ -5827,7 +5829,9 @@ const useRejectRequest = () => {
   const { mutate: rejectRequest, isPending } = useMutation({
     mutationFn: apiRejectRequest,
     onSuccess: () =>
-      queryClient.invalidateQueries(["pendingRequest", params.pending_id]),
+      queryClient.invalidateQueries({
+  queryKey: ["pendingRequest", params.pending_id],
+});
   });
   return { rejectRequest, isPending };
 };
@@ -5849,7 +5853,9 @@ const useApproveRequest = () => {
   const { mutate: approveRequest, isPending } = useMutation({
     mutationFn: apiApproveRequest,
     onSuccess: () =>
-      queryClient.invalidateQueries(["pendingRequest", params.pending_id]),
+      queryClient.invalidateQueries({
+  queryKey: ["pendingRequest", params.pending_id],
+});
   });
   return { approveRequest, isPending };
 };
@@ -5907,7 +5913,7 @@ const GovtPendingRequest = () => {
       <p>{pendingRequest.status}</p>
       <h3>Action taken by: {pendingRequest.action_taker}</h3>
       {pendingRequest.status === "rejected" ||
-      pendingRequest.status === "approved" ? (
+      pendingRequest.status === "assigned" ? (
         ""
       ) : (
         <div>
