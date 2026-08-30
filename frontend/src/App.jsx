@@ -264,12 +264,18 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="user/register" element={<UserRegister />} />
-          <Route path="user/login" element={<UserLogin />} />
-          <Route path="agency/register" element={<AgencyRegister />} />
-          <Route path="agency/login" element={<AgencyLogin />} />
-          <Route path="govt/register" element={<GovtRegister />} />
-          <Route path="govt/login" element={<GovtLogin />} />
+          <Route element={<UserPublicRoute />}>
+            <Route path="user/register" element={<UserRegister />} />
+            <Route path="user/login" element={<UserLogin />} />
+          </Route>
+          <Route element={<AgencyPublicRoute />}>
+            <Route path="agency/register" element={<AgencyRegister />} />
+            <Route path="agency/login" element={<AgencyLogin />} />
+          </Route>
+          <Route element={<GovtPublicRoute />}>
+            <Route path="govt/register" element={<GovtRegister />} />
+            <Route path="govt/login" element={<GovtLogin />} />
+          </Route>
           <Route element={<AgencyRouteProtector />}>
             <Route path="/agency" element={<AgencyLayout />}>
               <Route path="home" element={<AgencyHome />} />
@@ -309,6 +315,48 @@ function App() {
     </QueryClientProvider>
   );
 }
+
+const GovtPublicRoute = () => {
+  const { official, isPending } = useGovtAuth();
+
+  if (isPending) {
+    return <h1>Loading...</h1>;
+  }
+
+  if (official) {
+    return <Navigate to="/govt/home" replace />;
+  }
+
+  return <Outlet />;
+};
+
+const AgencyPublicRoute = () => {
+  const { agency, isPending } = useAgencyAuth();
+
+  if (isPending) {
+    return <h1>Loading...</h1>;
+  }
+
+  if (agency) {
+    return <Navigate to="/agency/home" replace />;
+  }
+
+  return <Outlet />;
+};
+
+const UserPublicRoute = () => {
+  const { user, isPending } = useUserAuth();
+
+  if (isPending) {
+    return <h1>Loading...</h1>;
+  }
+
+  if (user) {
+    return <Navigate to="/user/home" replace />;
+  }
+
+  return <Outlet />;
+};
 
 export const Home = () => {
   const root = useRef(null);
