@@ -851,6 +851,8 @@ const triggerSos = catchAsync(async (req, res) => {
     );
   }
 
+  console.log(agency);
+
   const io = req.app.get("io");
 
   io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
