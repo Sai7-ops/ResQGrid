@@ -5137,7 +5137,7 @@ const GovtRegistration = ({ officialData }) => {
 
 const GovtRegister = () => {
   const [step, setStep] = useState(() => {
-    const storedStep = localStorage.get("step") || 1;
+    const storedStep = localStorage.getItem("step") || 1;
     return storedStep;
   });
   const [maskedPhone, setMaskedPhone] = useState("XXXXXXXXXX");
