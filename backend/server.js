@@ -1424,7 +1424,7 @@ app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
 app.post("/api/user/logout", verifyUserJWT, logoutUser);
-app.get("/api/govt/sosAlerts", verifyAgencyJWT, getGovtSosAlerts);
+app.get("/api/govt/sosAlerts", verifyGovtJWT, getGovtSosAlerts);
 app.get("/api/govt/sosDispatches", verifyGovtJWT, getGovtDispatches);
 app.get("/api/govt/govtOfficial", verifyGovtJWT, getGovtOfficial);
 app.get("/api/govt/pendingRequests", verifyGovtJWT, getPendingRequests);
