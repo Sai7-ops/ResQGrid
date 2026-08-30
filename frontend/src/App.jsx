@@ -4823,7 +4823,7 @@ const VerifyGovtCredentials = ({
               </button>
             </div>
           </form>
-          <Link to="/gov/login">Already registered? then login...</Link>
+          <Link to="/govt/login">Already registered? then login...</Link>
         </>
       )}
     </div>
