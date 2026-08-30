@@ -292,15 +292,16 @@ function App() {
             </Route>
           </Route>
           <Route element={<GovtRouteProtector />}>
-            <Route path="/govt" element={<GovtLayout />} />
-            <Route path="home" element={<GovtHome />} />
-            <Route path="sosAlerts" element={<GovtSosInbox />} />
-            <Route path="sosDispatches" element={<GovtDispatchesInbox />} />
-            <Route path="pendingRequests" element={<GovtPendingRequests />} />
-            <Route
-              path="pendingRequests/:pending_id"
-              element={<GovtPendingRequest />}
-            />
+            <Route path="/govt" element={<GovtLayout />}>
+              <Route path="home" element={<GovtHome />} />
+              <Route path="sosAlerts" element={<GovtSosInbox />} />
+              <Route path="sosDispatches" element={<GovtDispatchesInbox />} />
+              <Route path="pendingRequests" element={<GovtPendingRequests />} />
+              <Route
+                path="pendingRequests/:pending_id"
+                element={<GovtPendingRequest />}
+              />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>
