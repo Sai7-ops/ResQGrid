@@ -5351,9 +5351,13 @@ const apiLogoutOfficial = async () => {
 };
 
 const useLogoutOfficial = () => {
+  const navigate = useNavigate();
   const { mutate: logoutOfficial, isPending } = useMutation({
     mutationFn: apiLogoutOfficial,
-    onSuccess: () => toast.success("Logged out successfully!"),
+    onSuccess: () => {
+      navigate("/", { replace: true });
+      toast.success("Logged out successfully!");
+    },
     onError: (err) => toast.error(err.response?.data?.message),
   });
   return { logoutOfficial, isPending };
@@ -5911,7 +5915,11 @@ const GovtPendingRequest = () => {
       <p>{pendingRequest.department}</p>
       <p>{pendingRequest.designation}</p>
       <p>{pendingRequest.status}</p>
-      <h3>{pendingRequest.action_taker ? `Action taken by: ${pendingRequest.action_taker}` : ""}</h3>
+      <h3>
+        {pendingRequest.action_taker
+          ? `Action taken by: ${pendingRequest.action_taker}`
+          : ""}
+      </h3>
       {pendingRequest.status === "rejected" ||
       pendingRequest.status === "assigned" ? (
         ""
