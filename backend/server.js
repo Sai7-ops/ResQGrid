@@ -856,9 +856,9 @@ const triggerSos = catchAsync(async (req, res) => {
   const io = req.app.get("io");
 
   io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
-  io.to(`official_ADMIN_${zone_id}`).emit("NEW_SOS_ALERT", sos_request);
-  io.to(`official_SUPER_ADMIN_${zone_id}`).emit("NEW_SOS_ALERT", sos_request);
-  io.to(`official_USER_ADMIN_${zone_id}`).emit("NEW_SOS_ALERT", sos_request);
+  io.to(`official_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
+  io.to(`official_SUPER_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
+  io.to(`official_USER_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
 
   agencies.forEach((agency) => {
     console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);

@@ -28,7 +28,7 @@ export const GovtSocketProvider = ({ children }) => {
       console.log("🟡 SOCKET DISCONNECTED:", reason);
     });
 
-    socketInstance.on("NEW_SOS_ALERT", (payload) => {
+    socketInstance.on("NEW_GOVT_SOS_ALERT", (payload) => {
       setAlerts((prevAlerts) => [...prevAlerts, payload]);
       toast.error("New SOS Alert", {
         icon: "⚠️",
