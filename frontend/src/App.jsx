@@ -265,8 +265,8 @@ function App() {
           <Route path="user/login" element={<UserLogin />} />
           <Route path="agency/register" element={<AgencyRegister />} />
           <Route path="agency/login" element={<AgencyLogin />} />
-          <Route path="gov/register" element={<GovRegister />} />
-          <Route path="gov/login" element={<GovLogin />} />
+          <Route path="govt/register" element={<GovtRegister />} />
+          <Route path="govt/login" element={<GovtLogin />} />
           <Route element={<AgencyRouteProtector />}>
             <Route path="/agency" element={<AgencyLayout />}>
               <Route path="home" element={<AgencyHome />} />
@@ -1109,7 +1109,6 @@ const UserLayout = () => {
         ref={layoutRef}
         className="relative z-0 min-h-screen overflow-x-hidden bg-[#F8FAFC] text-[#0F172A]"
       >
-
         <div
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
@@ -4699,83 +4698,574 @@ export const AgencyHome = () => {
   );
 };
 
-const VerifyGovCredentials = () => {
+const apiVerifyGovtCredentials = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/verifyCredentials`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyGovtCredentials = () => {
+  const { mutate: verifyGovtCredentials, isPending } = useMutation({
+    mutationFn: apiVerifyGovtCredentials,
+  });
+  return { verifyGovtCredentials, isPending };
+};
+
+const VerifyGovtCredentials = ({
+  setStep,
+  setMaskedPhone,
+  setOfficialData,
+}) => {
+  const { verifyGovtCredentials, isPending } = useVerifyGovtCredentials();
   const {
     handleSubmit,
     formState: { errors },
     register,
     reset,
   } = useForm();
+  const [status, setStatus] = useState(null);
 
-  const submitHandler = () => {
-    return;
+  const submitHandler = (payload) => {
+    verifyGovtCredentials(payload, {
+      onSuccess: (data) => {
+        if (data.status) {
+          setStatus(data.status);
+        } else {
+          const maskedPhone = data.mobile_no.replace(/\d(?=\d{4})/g, "X");
+          setMaskedPhone(maskedPhone);
+          setOfficialData(data);
+          localStorage.setItem("step", 2);
+          reset();
+          setStep(2);
+        }
+      },
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
   };
 
   return (
     <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
+      {status && status === "pending" ? (
         <div>
-          <label htmlFor="floating-label">
-            <span>Official Id</span>
-            <input
-              type="text"
-              {...register("official_id", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.official_id ? <p>{errors.official_id}</p> : ""}
+          <h1>You have already attempted to register.</h1>
+          <p>Your role is yet to be assigned</p>
         </div>
+      ) : (
+        ""
+      )}
+      {status && status === "rejected" ? (
         <div>
-          <label htmlFor="floating-label">
-            <span>Full Name</span>
-            <input
-              type="text"
-              {...register("name", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.name ? <p>{errors.name}</p> : ""}
+          <h1>Your Access is denied!</h1>
         </div>
-        <div>
-          <label htmlFor="floating-label">
-            <span>Aadhaar No.</span>
+      ) : (
+        ""
+      )}
+      {status && status === "assigned" ? (
+        <div>You are are already registered. Try logging in instead</div>
+      ) : (
+        ""
+      )}
+      {!status && (
+        <>
+          <form onSubmit={handleSubmit(submitHandler)}>
+            <div>
+              <label htmlFor="floating-label">
+                <span>Official Id</span>
+                <input
+                  type="text"
+                  {...register("official_id", {
+                    required: "This field is required!",
+                  })}
+                />
+              </label>
+              {errors?.official_id ? <p>{errors.official_id}</p> : ""}
+            </div>
+            <div>
+              <label htmlFor="floating-label">
+                <span>Full Name</span>
+                <input
+                  type="text"
+                  {...register("name", {
+                    required: "This field is required!",
+                  })}
+                />
+              </label>
+              {errors?.name ? <p>{errors.name}</p> : ""}
+            </div>
+            <div>
+              <label htmlFor="floating-label">
+                <span>Aadhaar No.</span>
+                <input
+                  type="text"
+                  {...register("aadhaar_no", {
+                    required: "This field is required!",
+                    minLength: {
+                      value: 12,
+                      message: "Aadhaar no. must be exactly 12 digits",
+                    },
+                    maxLength: {
+                      value: 12,
+                      message: "Aadhaar no. must be exactly 12 digits",
+                    },
+                  })}
+                />
+              </label>
+              {errors?.aadhaar_no ? <p>{errors.aadhaar_no}</p> : ""}
+            </div>
+            <div>
+              <button disabled={isPending} className="btn btn-primary">
+                Continue
+              </button>
+            </div>
+          </form>
+          <Link to="/gov/login">Already registered? then login...</Link>
+        </>
+      )}
+    </div>
+  );
+};
+
+const apiVerifyGovOtp = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/verifyOtp`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useVerifyGovOtp = () => {
+  const { mutate: verifyGovOtp, isPending } = useMutation({
+    mutationFn: apiVerifyGovOtp,
+  });
+  return { verifyGovOtp, isPending };
+};
+
+const VerifyGovOtp = ({ setStep, maskedPhone, officialData }) => {
+  const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
+  const inputRefs = useRef([]);
+
+  const { verifyGovOtp, isPending, error: mutationError } = useVerifyGovOtp();
+
+  const {
+    handleSubmit,
+    setValue,
+    setError,
+    clearErrors,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      otp: "",
+    },
+  });
+
+  const handleChange = (index, e) => {
+    const val = e.target.value;
+    if (val && !/^\d+$/.test(val)) return;
+
+    const newOtp = [...otpValues];
+    newOtp[index] = val ? val.slice(-1) : "";
+    setOtpValues(newOtp);
+
+    const fullOtp = newOtp.join("");
+    setValue("otp", fullOtp);
+
+    if (fullOtp.length === 6) {
+      clearErrors("otp");
+    }
+
+    if (val && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otpValues[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").trim().slice(0, 6);
+
+    if (/^\d+$/.test(pastedData)) {
+      const digits = pastedData.split("");
+      const newOtp = [...otpValues];
+
+      digits.forEach((digit, idx) => {
+        if (idx < 6) newOtp[idx] = digit;
+      });
+
+      setOtpValues(newOtp);
+      setValue("otp", newOtp.join(""));
+      clearErrors("otp");
+
+      const targetIdx = Math.min(digits.length, 5);
+      inputRefs.current[targetIdx]?.focus();
+    }
+  };
+
+  const onSubmit = () => {
+    const fullOtp = otpValues.join("");
+
+    if (fullOtp.length !== 6) {
+      setError("otp", {
+        type: "manual",
+        message: "Please enter the complete 6-digit verification code.",
+      });
+      return;
+    }
+
+    verifyGovOtp(
+      {
+        otp: fullOtp,
+        official_id: officialData.official_id,
+      },
+      {
+        onSuccess: () => {
+          setStep(3);
+          localStorage.setItem("step", 3);
+        },
+        onSettled: () => reset(),
+      },
+    );
+  };
+
+  const serverErrorMessage =
+    mutationError?.response?.data?.message || mutationError?.message;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-center text-[0.85rem] text-[#64748B]">
+        Enter the 6-digit verification code sent to{" "}
+        <span className="font-semibold text-[#0D9488]">{maskedPhone}</span>
+      </p>
+
+      {serverErrorMessage && (
+        <div className="rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] px-3.5 py-2.5 text-[0.82rem] font-medium text-[#DC2626]">
+          {serverErrorMessage}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div className="flex justify-center gap-2.5">
+          {otpValues.map((digit, idx) => (
             <input
+              key={idx}
+              ref={(el) => (inputRefs.current[idx] = el)}
               type="text"
-              {...register("aadhaar_no", {
-                required: "This field is required!",
-                minLength: {
-                  value: 12,
-                  message: "Aadhaar no. must be exactly 12 digits",
-                },
-                maxLength: {
-                  value: 12,
-                  message: "Aadhaar no. must be exactly 12 digits",
-                },
-              })}
+              inputMode="numeric"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(idx, e)}
+              onKeyDown={(e) => handleKeyDown(idx, e)}
+              onPaste={handlePaste}
+              disabled={isPending}
+              className={`h-12 w-11 rounded-lg border text-center text-lg font-semibold outline-none transition focus:ring-2 focus:ring-[#0D948826] ${
+                errors.otp || serverErrorMessage
+                  ? "border-[#DC2626]"
+                  : "border-[#E2E8F0] focus:border-[#0D9488]"
+              }`}
+              autoFocus={idx === 0}
             />
-          </label>
-          {errors?.aadhaar_no ? <p>{errors.aadhaar_no}</p> : ""}
+          ))}
+        </div>
+
+        {errors.otp && (
+          <p className="text-center text-[0.75rem] font-medium text-[#DC2626]">
+            {errors.otp.message}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            className="text-[0.85rem] font-medium text-[#64748B] transition hover:text-[#0F172A]"
+            onClick={() => setStep((prev) => prev - 1)}
+            disabled={isPending}
+          >
+            ← Back
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#0D9488] px-5 py-2.5 text-[0.88rem] font-semibold text-white transition hover:bg-[#0B7C72] disabled:opacity-60"
+          >
+            {isPending && (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            )}
+            {isPending ? "Verifying..." : "Verify Code"}
+          </button>
         </div>
       </form>
     </div>
   );
 };
 
-export const GovRegister = () => {
+const apiRegisterOfficial = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/register`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useRegisterOfficial = () => {
+  const { mutate: registerOfficial, isPending } = useMutation({
+    mutationFn: apiRegisterOfficial,
+  });
+  return { registerOfficial, isPending };
+};
+
+const GovtRegistration = ({ officialData }) => {
+  const { registerOfficial, isPending } = useRegisterOfficial();
+  const navigate = useNavigate();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    getValues,
+    formState: { errors },
+  } = useForm();
+  const { coordinates, fetchLocation } = useGeolocation();
+  const [check, setCheck] = useState(false);
+
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
+
+  const submitHandler = (data) => {
+    setCheck(true);
+    if (coordinates.latitude === null || coordinates.longitude === null) {
+      return;
+    }
+    const payload = {
+      password: data.password,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+      official_id: officialData.official_id,
+    };
+    registerOfficial(payload, {
+      onSuccess: () => {
+        toast.success(
+          "Your response is recorded and you will be able to login once your role is assigned",
+        );
+        reset();
+        localStorage.removeItem("step");
+        navigate("/govt/login", { replace: true });
+      },
+      onError: (err) => toast.error(err.response?.data?.message),
+    });
+  };
+
   return (
     <div>
-      <h1>Government Official Registration</h1>
-      <Link to="/gov/login">Already registered? then login...</Link>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Official Id</span>
+            <input type="text" value={officialData.official_id} readOnly />
+          </label>
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Official Email</span>
+            <input type="text" value={officialData.official_email} readOnly />
+          </label>
+        </div>
+        <p>Set a password for future logins</p>
+        <div>
+          <label className="floating-label">
+            <span>Password</span>
+            <input
+              type="password"
+              {...register("password", {
+                required: "This field is required",
+                minLength: {
+                  value: 8,
+                  message: "Password must be at least 8 characters",
+                },
+                pattern: {
+                  value:
+                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/,
+                  message:
+                    "Password must contain uppercase, lowercase, number and special character",
+                },
+              })}
+            />
+          </label>
+          {errors?.password ? <p>{errors.password.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Confirm Password</span>
+            <input
+              type="password"
+              {...register("confirmPassword", {
+                required: "This field is required",
+                validate: (value) =>
+                  value === getValues.password || "Passwords must match",
+              })}
+            />
+          </label>
+        </div>
+        <div>
+          <button disabled={isPending}>Register</button>
+        </div>
+      </form>
+      {check &&
+      (coordinates.latitude === null || coordinates.longitude === null) ? (
+        <p>Please wait until we fetch your location</p>
+      ) : (
+        ""
+      )}
     </div>
   );
 };
 
-export const GovLogin = () => {
+const GovtRegister = () => {
+  const [step, setStep] = useState(() => {
+    const storedStep = localStorage.get("step") || 1;
+    return storedStep;
+  });
+  const [maskedPhone, setMaskedPhone] = useState("XXXXXXXXXX");
+  const [officialData, setOfficialData] = useState(null);
+
   return (
     <div>
-      <h1>Government Login</h1>
+      <h1>Government Official Registration</h1>
+      {step === 1 ? (
+        <VerifyGovtCredentials
+          setStep={setStep}
+          setMaskedPhone={setMaskedPhone}
+          setOfficialData={setOfficialData}
+        />
+      ) : (
+        ""
+      )}
+      {step === 2 ? (
+        <VerifyGovOtp
+          setStep={setStep}
+          maskedPhone={maskedPhone}
+          officialData={officialData}
+        />
+      ) : (
+        ""
+      )}
+      {step === 3 ? <GovtRegistration officialData={officialData} /> : ""}
+    </div>
+  );
+};
+
+const apiLoginOfficial = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/govt/login`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useLoginOfficial = () => {
+  const { mutate: loginOfficial, isPending } = useMutation({
+    mutationFn: apiLoginOfficial,
+  });
+  return { loginOfficial, isPending };
+};
+
+export const GovtLogin = () => {
+  const { loginOfficial, isPending } = useLoginOfficial();
+  const navigate = useNavigate();
+  const [status, setStatus] = useState(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm();
+
+  const submitHandler = (data) => {
+    loginOfficial(data, {
+      onSuccess: (data) => {
+        if (data.status) {
+          setStatus(data.status);
+        } else {
+          toast.success(`Welcome back ${data.name}`);
+          navigate("/govt/home");
+        }
+      },
+      onError: (err) => toast.error(err?.response?.data?.message),
+      onSettled: () => reset(),
+    });
+  };
+
+  return (
+    <div>
+      {status === "pending" ? (
+        <h1>You have no roles assigned yet. Wait until then</h1>
+      ) : (
+        ""
+      )}
+      {status === "rejected" ? <h1>Your access is denied</h1> : ""}
+      {!status && (
+        <>
+          <h1>Government Login</h1>
+          <form onSubmit={handleSubmit(submitHandler)}>
+            <div>
+              <label className="floating-label">
+                <span>Official Id</span>
+                <input
+                  type="text"
+                  {...register("official_id", {
+                    required: "This field is required",
+                  })}
+                />
+              </label>
+              {errors?.official_id ? <p>{errors.official_id.message}</p> : ""}
+            </div>
+            <div>
+              <label className="floating-label">
+                <span>Password</span>
+                <input
+                  type="password"
+                  {...register("password", {
+                    required: "This field is required!",
+                    minLength: {
+                      value: 8,
+                      message: "Password must be at least 8 characters",
+                    },
+                    pattern: {
+                      value:
+                        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/,
+                      message:
+                        "Password must contain uppercase, lowercase, number and special character",
+                    },
+                  })}
+                />
+              </label>
+            </div>
+            <div>
+              <button disabled={isPending} className="btn btn-primary">
+                Login
+              </button>
+            </div>
+          </form>
+        </>
+      )}
     </div>
   );
 };

@@ -60,9 +60,32 @@ io.use(async (socket, next) => {
       .slice(1)
       .join("=");
 
+    const govtToken = cookies
+      .find((cookie) => cookie.startsWith("govt_jwt_token"))
+      ?.split("=")
+      .slice(1)
+      .join("=");
+
+    if (govtToken) {
+      const decoded = jwt.verify(govtToken, JWT_SECRET);
+      const result = await pool.query(
+        `
+        select * from government_officials
+        where official_id=$1
+        `,
+        [decoded.official_id],
+      );
+      if (result.rowCount === 0) {
+        return next(new Error("Authentication error: Official not found"));
+      }
+
+      socket.official = result.rows[0];
+      socket.type = "govt";
+      return next();
+    }
+
     if (agencyToken) {
       const decoded = jwt.verify(agencyToken, JWT_SECRET);
-
       const result = await pool.query(
         `SELECT agency_id, agency_name, zone_id, primary_capabilities_tags,
               ST_AsGeoJSON(hq_coordinates)::json AS hq_location
@@ -232,6 +255,13 @@ io.on("connection", (socket) => {
 
     socket.join(`user_${user_id}`);
     if (zone_id) socket.join(`user_${zone_id}`);
+  }
+
+  if(socket.type === "govt"){
+    const {official_id, zone_id, role} = socket.official;
+
+    socket.join(`official_${official_id}`);
+    if(zone_id) socket.join(`official_${role}_${zone_id}`)
   }
 
   socket.on("disconnect", () => {
@@ -1003,6 +1033,110 @@ const getDispatchData = catchAsync(async (req, res) => {
   return res.status(200).json(result.rows);
 });
 
+const verifyGovtCredentials = catchAsync(async (req, res) => {
+  const { official_id, aadhaar_no } = req.body;
+
+  const result1 = await pool.query(
+    `
+    select * from pending_requests
+    where official_id=$1
+    `,
+    [official_id],
+  );
+
+  if (result1.rowCount > 0)
+    return res.status(200).json({
+      pending_request: result1.rows[0],
+      status: result1.rows[0].status,
+    });
+
+  const result2 = await pool.query(
+    `
+    select * from mock_gov_officials
+    where official_id=$1 and aadhaar_no=$2 
+    `,
+    [official_id, aadhaar_no],
+  );
+  if (result2.rowCount === 0)
+    return res.status(404).json({ message: "Invalid Crdentials" });
+
+  const otp = generateOTP();
+  console.log(`Your OTP: ${otp}`);
+  await redis.set(`otp:govtOfficial:${otp}`, otp, "EX", 300);
+  return res.status(200).json(result2.rows[0]);
+});
+
+const verifyGovtOtp = catchAsync(async (req, res) => {
+  const { otp, official_id } = req.body;
+  const storedOtp = await redis.get(`otp:govtOfficial:${otp}`);
+  if (!storedOtp)
+    return res.status(404).json({ message: "OTP is expired or never sent" });
+
+  if (storedOtp != otp) return res.status(401).json({ message: "Invalid OTP" });
+
+  return res.status(200).json({ verified: true });
+});
+
+const registerOfficial = catchAsync(async (req, res) => {
+  const { official_id, latitude, longitude, password } = req.body;
+  const password_hash = await bcrypt.hash(password, 10);
+  const { zone_id, zone_name } = getBhopalZone(longitude, latitude);
+  await pool.query(
+    `
+      insert into pending_requests(official_id, zone_id, zone_name, password_hash)
+      values($1, $2, $3, $4)
+      `,
+    [official_id, zone_id, zone_name, password_hash],
+  );
+  res.status(200).json({ message: "Sent for verification" });
+});
+
+const loginGovtOfficial = catchAsync(async (req, res) => {
+  const { official_id, password } = req.body;
+  const result1 = await pool.query(
+    `
+    select * from pending_requests 
+    where official_id=$1
+    `,
+    [official_id],
+  );
+
+  if (result1.rowCount === 0)
+    return res
+      .status(404)
+      .json({ message: "You are not registered yet. Register first!" });
+
+  const isMatch = await bcrypt.compare(password, result1.rows[0].password_hash);
+  if (!isMatch) return res.status(400).json({ message: "Invalid Credentials" });
+
+  const status = result1.rows[0].status;
+
+  if (status === "pending" || status === "rejected")
+    return res.status(200).json({ status });
+
+  const result2 = await pool.query(
+    `
+    select * from government_officials
+    where official_id=$1
+    `,
+    [official_id],
+  );
+  const official = result2.rows[0];
+
+  const payload = {
+    official_name: official.name,
+    official_id: official.official_id,
+  };
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+  res.cookie("govt_jwt_token", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    maxAge: 1000 * 60 * 60 * 2,
+  });
+  return res.status(200).json(official);
+});
+
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyAgencyJWT, getMyAgency);
 app.get("/api/agency/sosAlerts", verifyAgencyJWT, getSosAlerts);
@@ -1028,6 +1162,10 @@ app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
 app.post("/api/user/logout", verifyUserJWT, logoutUser);
+app.post("/api/govt/verifyCredentials", verifyGovtCredentials);
+app.post("/api/govt/verifyOtp", verifyGovtOtp);
+app.post("/api/govt/register", registerOfficial);
+app.post("/api/govt/login", loginGovtOfficial);
 
 app.use((req, res, next) => {
   const err = new Error(`Cannot find ${req.originalUrl} on this server!`);
