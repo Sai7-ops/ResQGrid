@@ -5191,7 +5191,7 @@ const GovtRegistration = ({ officialData }) => {
               {...register("confirmPassword", {
                 required: "This field is required",
                 validate: (value) =>
-                  value === getValues.password || "Passwords must match",
+                  value === getValues("password") || "Passwords must match",
               })}
             />
           </label>
@@ -5212,7 +5212,7 @@ const GovtRegistration = ({ officialData }) => {
 
 const GovtRegister = () => {
   const [step, setStep] = useState(() => {
-    const storedStep = localStorage.getItem("step") || 1;
+    const storedStep = Number(localStorage.getItem("step")) || 1;
     return storedStep;
   });
   const [maskedPhone, setMaskedPhone] = useState("XXXXXXXXXX");
@@ -5347,7 +5347,7 @@ export const GovtLogin = () => {
 
 const apiLogoutOfficial = async () => {
   const response = await axios.post(
-    `https://resqgrid-x51v.onrender.com/api/govt/logoutOfficial`,
+    `https://resqgrid-x51v.onrender.com/api/govt/logout`,
     null,
     {
       withCredentials: true,
@@ -5601,8 +5601,9 @@ const apiGetSosDispatches = async () => {
 const useGetSosDispatches = () => {
   const { official } = useGovtAuth();
   const { data: sos_dispatches, isPending } = useQuery({
-    queryKey: ["sosDispatches", official.zone_id],
+    queryKey: ["sosDispatches", official?.zone_id],
     queryFn: apiGetSosDispatches,
+    enabled: !!official,
   });
   return { sos_dispatches, isPending };
 };
@@ -5620,8 +5621,9 @@ const apiGetGovtSosAlerts = async () => {
 const useGetGovtSosAlerts = () => {
   const { official } = useGovtAuth();
   const { data: sos_alerts, isPending } = useQuery({
-    queryKey: ["sosAlerts", official.zone_id],
+    queryKey: ["sosAlerts", official?.zone_id],
     queryFn: apiGetGovtSosAlerts,
+    enabled: !!official,
   });
   return { sos_alerts, isPending };
 };
@@ -5631,7 +5633,9 @@ const GovtSosInbox = () => {
   const { alerts, setAlerts } = useGovtSocket();
 
   useEffect(() => {
-    setAlerts(sos_alerts);
+    if (sos_alerts) {
+      setAlerts(sos_alerts);
+    }
   }, [sos_alerts, setAlerts]);
 
   if (isPending) return <h1>Loading...</h1>;
@@ -5641,11 +5645,13 @@ const GovtSosInbox = () => {
       <h1>SOS ALERTS</h1>
       <table>
         <thead>
-          <th>SOS ID</th>
-          <th>DISASTER TYPE</th>
-          <th>STATUS</th>
-          <th>TRIGGERED AT</th>
-          <th>USER ID</th>
+          <tr>
+            <th>SOS ID</th>
+            <th>DISASTER TYPE</th>
+            <th>STATUS</th>
+            <th>TRIGGERED AT</th>
+            <th>USER ID</th>
+          </tr>
         </thead>
         <tbody>
           {alerts.map((alert) => {
@@ -5670,7 +5676,9 @@ const GovtDispatchesInbox = () => {
   const { sos_dispatches, isPending } = useGetSosDispatches();
   const { dispatches, setDispatches } = useGovtSocket();
   useEffect(() => {
-    setDispatches(sos_dispatches);
+    if (sos_dispatches) {
+      setDispatches(sos_dispatches);
+    }
   }, [sos_dispatches, setDispatches]);
 
   if (isPending) return <h1>Loading...</h1>;
@@ -5681,14 +5689,16 @@ const GovtDispatchesInbox = () => {
       <h1>SOS DISPATCHES</h1>
       <table>
         <thead>
-          <th>DISPATCH ID</th>
-          <th>SOS ID</th>
-          <th>AGENCY ID</th>
-          <th>UNIT ID</th>
-          <th>UNIT TYPE</th>
-          <th>STATUS</th>
-          <th>ASSIGNED AT</th>
-          <th>UPDATED AT</th>
+          <tr>
+            <th>DISPATCH ID</th>
+            <th>SOS ID</th>
+            <th>AGENCY ID</th>
+            <th>UNIT ID</th>
+            <th>UNIT TYPE</th>
+            <th>STATUS</th>
+            <th>ASSIGNED AT</th>
+            <th>UPDATED AT</th>
+          </tr>
         </thead>
         <tbody>
           {dispatches.map((dispatch) => {
@@ -5724,8 +5734,9 @@ const apiGetPendingRequests = async () => {
 const useGetPendingRequests = () => {
   const { official } = useGovtAuth();
   const { data: pending_requests, isPending } = useQuery({
-    queryKey: ["pendingRequests", official.zone_id],
+    queryKey: ["pendingRequests", official?.zone_id],
     queryFn: apiGetPendingRequests,
+    enabled: !!official,
   });
 
   return { pending_requests, isPending };
@@ -5737,7 +5748,9 @@ const GovtPendingRequests = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setPendingRequests(pending_requests);
+    if (pending_requests) {
+      setPendingRequests(pending_requests);
+    }
   }, [pending_requests, setPendingRequests]);
 
   if (isPending) return <h1>Loading...</h1>;
@@ -5746,13 +5759,15 @@ const GovtPendingRequests = () => {
     <div>
       <table>
         <thead>
-          <th>PENDING ID</th>
-          <th>OFFICIAL ID</th>
-          <th>OFFICIAL NAME</th>
-          <th>OFFICIAL EMAIL</th>
-          <th>DEPARTMENT</th>
-          <th>DESIGNATION</th>
-          <th>REQUEST STATUS</th>
+          <tr>
+            <th>PENDING ID</th>
+            <th>OFFICIAL ID</th>
+            <th>OFFICIAL NAME</th>
+            <th>OFFICIAL EMAIL</th>
+            <th>DEPARTMENT</th>
+            <th>DESIGNATION</th>
+            <th>REQUEST STATUS</th>
+          </tr>
         </thead>
         <tbody>
           {pendingRequests.map((request) => {
@@ -5796,7 +5811,7 @@ const useGetPendingRequest = () => {
   const { pending_id } = params;
   const { data: pendingRequest, isPending } = useQuery({
     queryKey: ["pendingRequest", pending_id],
-    queryFn: apiGetPendingRequest,
+    queryFn: () => apiGetPendingRequest(pending_id),
   });
   return { pendingRequest, isPending };
 };
@@ -5818,7 +5833,7 @@ const useRejectRequest = () => {
   const { mutate: rejectRequest, isPending } = useMutation({
     mutationFn: apiRejectRequest,
     onSuccess: () =>
-      queryClient.invalidateQueries(["pendingrequest", params.pending_id]),
+      queryClient.invalidateQueries(["pendingRequest", params.pending_id]),
   });
   return { rejectRequest, isPending };
 };
@@ -5840,7 +5855,7 @@ const useApproveRequest = () => {
   const { mutate: approveRequest, isPending } = useMutation({
     mutationFn: apiApproveRequest,
     onSuccess: () =>
-      queryClient.invalidateQueries(["pendingrequest", params.pending_id]),
+      queryClient.invalidateQueries(["pendingRequest", params.pending_id]),
   });
   return { approveRequest, isPending };
 };
@@ -5882,6 +5897,10 @@ const GovtPendingRequest = () => {
       onError: (err) => toast.error(err.response?.data?.message),
     });
   };
+
+  if (!pendingRequest) {
+    return <h1>Pending request not found</h1>;
+  }
 
   return (
     <div>

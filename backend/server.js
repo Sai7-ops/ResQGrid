@@ -1114,17 +1114,19 @@ const verifyGovtCredentials = catchAsync(async (req, res) => {
 
   const otp = generateOTP();
   console.log(`Your OTP: ${otp}`);
-  await redis.set(`otp:govtOfficial:${otp}`, otp, "EX", 300);
+  await redis.set(`otp:govtOfficial:${official_id}`, otp, "EX", 300);
   return res.status(200).json(result2.rows[0]);
 });
 
 const verifyGovtOtp = catchAsync(async (req, res) => {
   const { otp, official_id } = req.body;
-  const storedOtp = await redis.get(`otp:govtOfficial:${otp}`);
+  const storedOtp = await redis.get(`otp:govtOfficial:${official_id}`);
   if (!storedOtp)
     return res.status(404).json({ message: "OTP is expired or never sent" });
 
   if (storedOtp != otp) return res.status(401).json({ message: "Invalid OTP" });
+
+  await redis.del(`otp:govtOfficial:${official_id}`);
 
   return res.status(200).json({ verified: true });
 });
@@ -1289,6 +1291,19 @@ const getPendingRequests = catchAsync(async (req, res) => {
   return res.status(200).json(result.rows);
 });
 
+const getPendingRequest = catchAsync(async (req, res) => {
+  const { pending_id } = req.params;
+  const result = await pool.query(
+    `
+    select p.pending_id, p.official_id, p.status, o.* from
+    pending_requests p join mock_gov_officials o on p.official_id=o.official_id
+    where pending_id=$1 
+    `,
+    [pending_id],
+  );
+  return res.status(200).json(result.rows[0]);
+});
+
 const rejectRequest = catchAsync(async (req, res) => {
   const { name, pending_id } = req.body;
   await pool.query(
@@ -1300,6 +1315,9 @@ const rejectRequest = catchAsync(async (req, res) => {
     `,
     [name, pending_id],
   );
+  return res.status(200).json({
+    message: "Request rejected successfully",
+  });
 });
 
 const approveRequest = catchAsync(async (req, res) => {
@@ -1307,7 +1325,7 @@ const approveRequest = catchAsync(async (req, res) => {
   await pool.query(
     `
     update pending_requests
-    set status='approved',
+    set status='assigned',
     action_taker=$1
     where pending_id=$2
     `,
@@ -1378,6 +1396,11 @@ app.get("/api/govt/sosAlerts", verifyAgencyJWT, getGovtSosAlerts);
 app.get("/api/govt/sosDispatches", verifyGovtJWT, getGovtDispatches);
 app.get("/api/govt/govtOfficial", verifyGovtJWT, getGovtOfficial);
 app.get("/api/govt/pendingRequests", verifyGovtJWT, getPendingRequests);
+app.get(
+  "/api/govt/pendingRequest/:pending_id",
+  verifyGovtJWT,
+  getPendingRequest,
+);
 app.post("/api/govt/verifyCredentials", verifyGovtCredentials);
 app.post("/api/govt/verifyOtp", verifyGovtOtp);
 app.post("/api/govt/register", registerOfficial);
