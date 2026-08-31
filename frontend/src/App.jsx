@@ -641,7 +641,7 @@ const AgencyRouteProtector = () => {
   return <Outlet />;
 };
 
-const useGeolocation = (options = {}) => {
+const useGeolocation = () => {
   const [coordinates, setCoordinates] = useState({
     latitude: null,
     longitude: null,
@@ -655,13 +655,6 @@ const useGeolocation = (options = {}) => {
     }
     setLoading(true);
     setError(null);
-
-    const geoOptions = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-      ...options,
-    };
 
     navigator.geolocation.getCurrentPosition(
       (position) => {

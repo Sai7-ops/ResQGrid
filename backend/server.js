@@ -838,7 +838,7 @@ const alertAgency = catchAsync(async (req, res) => {
       sos_request.sos_id,
       agency.agency_id,
       agency.matched_tags,
-      agency.distance_meters,
+      agency.distance_km * 1000,
     ],
   );
 
