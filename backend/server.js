@@ -1620,7 +1620,7 @@ const getUnitActiveMission = catchAsync(async (req, res) => {
 
     WHERE ud.unit_id = $1
 
-      AND ud.status IN ('EN_ROUTE', 'ON_SCENE')
+      AND ud.status IN ('EN ROUTE', 'ON SCENE')
 
       AND s.status IN (
         'pending',
