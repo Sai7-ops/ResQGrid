@@ -888,7 +888,7 @@ const viewNearbyAgencies = catchAsync(async (req, res) => {
       a.official_email,
       a.coverage_radius_km,
       a.hq_location_address,
-      a.hq_coordinates,
+      ST_AsGeoJSON(a.hq_coordinates)::json AS hq_coordinates,
 
       ARRAY_AGG(DISTINCT tag) AS matched_tags,
 
@@ -957,7 +957,7 @@ const getNearbyAgencies = catchAsync(async (req, res) => {
   a.official_email,
   a.coverage_radius_km,
   a.hq_location_address,
-  a.hq_coordinates,
+  ST_AsGeoJSON(a.hq_coordinates)::json AS hq_coordinates,
   a.updated_on,
 
       ARRAY_AGG(DISTINCT tag) AS matched_tags,
