@@ -865,7 +865,7 @@ const alertAgency = catchAsync(async (req, res) => {
     location: [longitude, latitude],
     triggered_at: sos_request.triggered_at,
     matched_capabilities: agency.matched_tags,
-    distance_meters: agency.distance_meters,
+    distance_meters: agency.distance_km * 1000,
   });
 
   res.status(200).json({

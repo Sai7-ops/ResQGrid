@@ -1004,6 +1004,14 @@ const NearbyAgencies = () => {
           ...data,
           active: true,
         });
+        queryClient.invalidateQueries({
+          queryKey: [
+            "nearbyAgencies",
+            coordinates.latitude,
+            coordinates.longitude,
+            disasterType,
+          ],
+        });
         setActive(true);
       },
       onError: (err) =>
@@ -1014,6 +1022,8 @@ const NearbyAgencies = () => {
 
   if (loading) return <h1>Wait while we fetch your location</h1>;
   if (isPending || fetching) return <h1>Loading</h1>;
+  if (alert_status?.length > 0 || active)
+    return <h1>You already have an active SOS</h1>;
   if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
 
   return (
@@ -1083,7 +1093,9 @@ const NearbyAgencies = () => {
                   <td>{agency.official_email}</td>
                   <td>{agency.updated_on}</td>
                   <td>
-                    {alert_status.length > 0 || active ? (
+                    {alert_status?.length > 0 || active ? (
+                      "Not Available"
+                    ) : (
                       <button
                         disabled={alerting}
                         onClick={() => submitHandler(agency)}
@@ -1091,8 +1103,6 @@ const NearbyAgencies = () => {
                       >
                         Trigger SOS
                       </button>
-                    ) : (
-                      "Not Available"
                     )}
                   </td>
                 </tr>
@@ -1131,13 +1141,17 @@ const NearbyAgencies = () => {
                       Distance: {agency.distance_km}km away
                     </p>
 
-                    <button
-                      disabled={alerting}
-                      onClick={() => submitHandler(agency)}
-                      className="btn btn-xs btn-danger"
-                    >
-                      Trigger SOS
-                    </button>
+                    {alert_status?.length > 0 || active ? (
+                      "Not Available"
+                    ) : (
+                      <button
+                        disabled={alerting}
+                        onClick={() => submitHandler(agency)}
+                        className="btn btn-xs btn-danger"
+                      >
+                        Trigger SOS
+                      </button>
+                    )}
                   </div>
                 </Popup>
               </Marker>
