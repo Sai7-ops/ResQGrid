@@ -669,13 +669,20 @@ const useGeolocation = (options = {}) => {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         });
+
         setLoading(false);
       },
       (err) => {
+        console.error("Geolocation error:", err);
+
         setError(err.message || "Failed to retrieve location");
         setLoading(false);
       },
-      geoOptions,
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
     );
   }, []);
 
@@ -967,7 +974,7 @@ const useAlertAgency = () => {
 const NearbyAgencies = () => {
   const { coordinates, loading, fetchLocation } = useGeolocation();
   const [disasterType, setDisasterType] = useState("medical_emergency");
-  const { user} = useUserAuth();
+  const { user } = useUserAuth();
   const { alert_status, isPending: fetching } = useGetAlertStatus();
   const [active, setActive] = useState(false);
   const [description, setDescription] = useState("");
