@@ -167,215 +167,165 @@ io.on("connection", async (socket) => {
     socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
       const { sos_id, unit_type, unit_id, agency_id } = payload;
 
-      const client = await pool.connect();
-
       try {
-        await client.query("BEGIN");
-
-        const sosResult = await client.query(
+        const sos_request = await pool.query(
           `
-      SELECT *
-      FROM sos_requests
-      WHERE sos_id = $1
-      FOR UPDATE
+      select *
+      from sos_requests
+      where sos_id = $1
+        and status not in ('resolved', 'cancelled')
+      for update
       `,
           [sos_id],
         );
 
-        if (sosResult.rowCount === 0) {
-          await client.query("ROLLBACK");
-
+        if (sos_request.rowCount === 0) {
           return callback?.({
             success: false,
-            message: `SOS #${sos_id} was not found.`,
+            message: "sos not found or already resolved/cancelled.",
           });
         }
 
-        const sos_request = sosResult.rows[0];
+        const { zone_id, zone_name } = sos_request.rows[0];
 
-        const existingDispatch = await client.query(
+        const already_claimed = await pool.query(
           `
-      SELECT
-          sd.sos_id,
-          sd.dispatch_id,
-          ud.agency_id,
-          ud.unit_id,
-          ud.unit_type,
-          ud.status
-      FROM sos_dispatches sd
-      JOIN unit_dispatches ud
-        ON ud.dispatch_id = sd.dispatch_id
-      WHERE sd.sos_id = $1
-      FOR UPDATE
+      select 1
+      from sos_dispatches sd
+      join unit_dispatches ud
+        on ud.dispatch_id = sd.dispatch_id
+      join agency_units au
+        on au.unit_id = ud.unit_id
+      where sd.sos_id = $1
+        and au.unit_type = $2
+        and ud.status in ('EN ROUTE', 'ON SCENE')
+      limit 1
       `,
-          [sos_id],
+          [sos_id, unit_type],
         );
 
-        if (existingDispatch.rowCount > 0) {
-          const existing = existingDispatch.rows[0];
-
-          await client.query("ROLLBACK");
-
+        if (already_claimed.rowCount > 0) {
           return callback?.({
             success: false,
-            code: "SOS_ALREADY_CLAIMED",
-            message: `SOS #${sos_id} is already being handled by another unit.`,
-            dispatch: {
-              dispatch_id: existing.dispatch_id,
-              agency_id: existing.agency_id,
-              unit_id: existing.unit_id,
-              unit_type: existing.unit_type,
-              status: existing.status,
-            },
+            message: `the '${unit_type}' capability for sos #${sos_id} has already been claimed.`,
           });
         }
 
-        const unitResult = await client.query(
+        const unit_result = await pool.query(
           `
-      SELECT
-          au.*,
-          ST_AsGeoJSON(au.current_location)::json AS location
-      FROM agency_units au
-      WHERE au.unit_id = $1
-        AND au.agency_id = $2
-      FOR UPDATE
+      select
+        au.*,
+        (
+          select count(*)
+          from sos_dispatches sd
+          join unit_dispatches ud
+            on ud.dispatch_id = sd.dispatch_id
+          where ud.unit_id = au.unit_id
+            and ud.status in ('EN ROUTE', 'ON SCENE')
+        ) as active_sos_count
+      from agency_units au
+      where au.unit_id = $1
+        and au.agency_id = $2
+        and au.unit_type = $3
+      for update
       `,
-          [unit_id, agency_id],
+          [unit_id, agency_id, unit_type],
         );
 
-        if (unitResult.rowCount === 0) {
-          await client.query("ROLLBACK");
-
+        if (unit_result.rowCount === 0) {
           return callback?.({
             success: false,
-            code: "UNIT_NOT_FOUND",
-            message: "The selected unit was not found.",
+            message: "unit not found.",
           });
         }
 
-        const unit = unitResult.rows[0];
+        const unit = unit_result.rows[0];
 
-        const capacityResult = await client.query(
-          `
-      SELECT COUNT(*)::int AS active_sos_count
-      FROM sos_dispatches sd
-      JOIN unit_dispatches ud
-        ON ud.dispatch_id = sd.dispatch_id
-      JOIN sos_requests sr
-        ON sr.sos_id = sd.sos_id
-      WHERE ud.unit_id = $1
-        AND ud.status NOT IN ('RESOLVED', 'CANCELLED')
-        AND sr.status NOT IN ('resolved', 'cancelled')
-      `,
-          [unit_id],
-        );
-
-        const activeSosCount = capacityResult.rows[0].active_sos_count;
-        const sosCapacity = unit.sos_capacity;
-
-        if (activeSosCount >= sosCapacity) {
-          await client.query("ROLLBACK");
-
+        if (Number(unit.active_sos_count) >= Number(unit.sos_capacity)) {
           return callback?.({
             success: false,
-            code: "UNIT_CAPACITY_FULL",
-            message: `Unit ${unit.unit_name} has reached its SOS capacity.`,
-            current_load: activeSosCount,
-            sos_capacity: sosCapacity,
+            message: `unit ${unit_id} has reached its sos capacity.`,
           });
         }
 
-        let dispatchResult = await client.query(
+        const existing_dispatch = await pool.query(
           `
       select *
       from unit_dispatches
       where unit_id = $1
-        and status not in ('RESOLVED', 'CANCELLED')
+        and status in ('EN ROUTE', 'ON SCENE')
       order by dispatch_id desc
       limit 1
-      for update
       `,
           [unit_id],
         );
 
         let dispatchData;
 
-        if (dispatchResult.rowCount > 0) {
-
-          dispatchData = dispatchResult.rows[0];
+        if (existing_dispatch.rowCount > 0) {
+          dispatchData = existing_dispatch.rows[0];
         } else {
-
-          const newDispatch = await client.query(
+          const dispatch = await pool.query(
             `
-        insert into unit_dispatches (
-          agency_id,
-          unit_type,
-          unit_id,
-          status,
-          assigned_at,
-          updated_at,
-          zone_id,
-          zone_name
-        )
-        values (
-          $1,
-          $2,
-          $3,
-          'EN ROUTE',
-          current_timestamp,
-          current_timestamp,
-          $4,
-          $5,
-        )
+        insert into unit_dispatches
+          (agency_id, unit_type, unit_id, status, zone_id, zone_name)
+        values
+          ($1, $2, $3, 'EN ROUTE', $4, $5)
         returning *
         `,
-            [
-              agency_id,
-              unit_type,
-              unit_id,
-              sos_request.zone_id,
-              sos_request.zone_name,
-            ],
+            [agency_id, unit_type, unit_id, zone_id, zone_name],
           );
 
-          dispatchData = newDispatch.rows[0];
+          dispatchData = dispatch.rows[0];
+
+          await pool.query(
+            `
+        update agency_units
+        set status = 'EN_ROUTE'
+        where unit_id = $1
+          and status = 'AVAILABLE'
+        `,
+            [unit_id],
+          );
         }
 
-        const dispatch_id = dispatchData.dispatch_id;
-
-        await client.query(
+        await pool.query(
           `
-      insert into sos_dispatches (
-        dispatch_id,
-        sos_id
-      )
-      values ($1, $2)
+      insert into sos_dispatches
+        (dispatch_id, sos_id)
+      values
+        ($1, $2)
       `,
-          [dispatch_id, sos_id],
+          [dispatchData.dispatch_id, sos_id],
         );
 
-        await client.query(
+        await pool.query(
           `
       update sos_requests
-      set
-        status = 'dispatched'
+      set status = 'dispatched'
       where sos_id = $1
       `,
           [sos_id],
         );
 
-        await client.query(
+        const user_id = sos_request.rows[0].user_id;
+
+        const unit_location_result = await pool.query(
           `
-      update agency_units
-      set
-        status = 'EN_ROUTE'
+      select
+        unit_name,
+        unit_id,
+        unit_type,
+        ST_AsGeoJSON(current_location)::json as location
+      from agency_units
       where unit_id = $1
       `,
           [unit_id],
         );
 
+        const unitData = unit_location_result.rows[0];
 
-        const agencyResult = await client.query(
+        const agency_result = await pool.query(
           `
       select agency_name
       from agencies
@@ -384,69 +334,54 @@ io.on("connection", async (socket) => {
           [agency_id],
         );
 
-        const agency_name = agencyResult.rows[0]?.agency_name;
-
-        await client.query("COMMIT");
+        const agency_name = agency_result.rows[0]?.agency_name;
 
         callback?.({
           success: true,
-          message: "SOS successfully claimed.",
           dispatch: dispatchData,
-          sos_id,
-          current_load: activeSosCount + 1,
-          sos_capacity: sosCapacity,
         });
 
-        io.to(`agency_${sos_request.zone_id}`).emit("CAPABILITY_CLAIMED", {
+        io.to(`agency_${zone_id}`).emit("CAPABILITY_CLAIMED", {
           sos_id,
           claimed_unit_type: unit_type,
           claimed_by_agency_id: agency_id,
-          unit_id,
-          dispatch_id,
         });
 
         const dispatchPayload = {
           sos_id,
-          dispatch_id,
+          dispatch_id: dispatchData.dispatch_id,
           agency_name,
           unit_type,
-          unit_name: unit.unit_name,
+          unit_name: unitData.unit_name,
           unit_id,
-          unit_location: unit.location,
+          unit_location: unitData.location,
           status: dispatchData.status,
           assigned_at: dispatchData.assigned_at,
         };
 
-        io.to(`official_SUPER_ADMIN_${sos_request.zone_id}`).emit(
+        io.to(`official_SUPER_ADMIN_${zone_id}`).emit(
           "NEW_SOS_DISPATCH",
           dispatchPayload,
         );
 
-        io.to(`official_ADMIN_${sos_request.zone_id}`).emit(
+        io.to(`official_ADMIN_${zone_id}`).emit(
           "NEW_SOS_DISPATCH",
           dispatchPayload,
         );
 
-        io.to(`official_AGENCY_ADMIN_${sos_request.zone_id}`).emit(
+        io.to(`official_AGENCY_ADMIN_${zone_id}`).emit(
           "NEW_SOS_DISPATCH",
           dispatchPayload,
         );
 
-        io.to(`user_${sos_request.user_id}`).emit(
-          "CITIZEN_UNIT_EN_ROUTE",
-          dispatchPayload,
-        );
+        io.to(`user_${user_id}`).emit("CITIZEN_UNIT_EN_ROUTE", dispatchPayload);
       } catch (error) {
-        await client.query("ROLLBACK");
-
         console.error("CLAIM_SOS_CAPABILITY ERROR:", error);
 
         callback?.({
           success: false,
-          message: "Failed to claim SOS.",
+          message: "failed to claim sos capability.",
         });
-      } finally {
-        client.release();
       }
     });
   }
@@ -1451,13 +1386,9 @@ export const findNearestAgencies = async (
     sos_id,
   ]);
 
-  const foundTags = new Set(
-    result.rows.flatMap((r) => r.matched_tags || [])
-  );
+  const foundTags = new Set(result.rows.flatMap((r) => r.matched_tags || []));
 
-  const missingTags = requiredTags.filter(
-    (tag) => !foundTags.has(tag)
-  );
+  const missingTags = requiredTags.filter((tag) => !foundTags.has(tag));
 
   if (missingTags.length > 0) {
     const fallbackResult = await pool.query(baseQuery(5), [
@@ -1467,12 +1398,10 @@ export const findNearestAgencies = async (
       sos_id,
     ]);
 
-    const existingAgencyIds = new Set(
-      result.rows.map((r) => r.agency_id)
-    );
+    const existingAgencyIds = new Set(result.rows.map((r) => r.agency_id));
 
     const newAgencies = fallbackResult.rows.filter(
-      (r) => !existingAgencyIds.has(r.agency_id)
+      (r) => !existingAgencyIds.has(r.agency_id),
     );
 
     return [...result.rows, ...newAgencies];
