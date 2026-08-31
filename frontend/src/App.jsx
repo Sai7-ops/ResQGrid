@@ -8,7 +8,6 @@ import {
   Outlet,
   NavLink,
   useParams,
-  useSearchParams,
 } from "react-router-dom";
 import "./App.css";
 import {
@@ -1027,7 +1026,6 @@ const NearbyAgencies = () => {
             value={disasterType}
             onChange={(e) => setDisasterType(e.target.value)}
           >
-            <option value="">ALL</option>
             <option value="medical_emergency">MEDICAL EMERGENCY</option>
             <option value="fire">FIRE</option>
             <option value="flood">FLOOD</option>
@@ -1224,7 +1222,6 @@ const ViewNearbyAgencies = () => {
             value={disasterType}
             onChange={(e) => setDisasterType(e.target.value)}
           >
-            <option value="">ALL</option>
             <option value="medical_emergency">MEDICAL EMERGENCY</option>
             <option value="fire">FIRE</option>
             <option value="flood">FLOOD</option>
