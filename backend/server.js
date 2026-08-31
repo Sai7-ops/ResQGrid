@@ -309,7 +309,7 @@ io.on("connection", async (socket) => {
 
 export const catchAsync = (fn) => {
   return (req, res, next) => {
-    fn(req, res, next).catch(next);
+    Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
 

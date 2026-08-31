@@ -967,7 +967,7 @@ const useAlertAgency = () => {
 const NearbyAgencies = () => {
   const { coordinates, loading, fetchLocation } = useGeolocation();
   const [disasterType, setDisasterType] = useState("medical_emergency");
-  const { user, isPending: fetchingUser } = useUserAuth();
+  const { user} = useUserAuth();
   const { alert_status, isPending: fetching } = useGetAlertStatus();
   const [active, setActive] = useState(false);
   const [description, setDescription] = useState("");
@@ -1013,7 +1013,7 @@ const NearbyAgencies = () => {
   };
 
   if (loading) return <h1>Wait while we fetch your location</h1>;
-  if (fetchingUser || isPending || fetching) return <h1>Loading</h1>;
+  if (isPending || fetching) return <h1>Loading</h1>;
   if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
 
   return (
@@ -1197,7 +1197,7 @@ const useViewNearbyAgencies = ({ latitude, longitude, disaster_type }) => {
 const ViewNearbyAgencies = () => {
   const { coordinates, loading, fetchLocation } = useGeolocation();
   const [disasterType, setDisasterType] = useState("medical_emergency");
-  const { user, isPending: fetching } = useUserAuth();
+  const { user } = useUserAuth();
   const { nearbyAgencies, isPending } = useViewNearbyAgencies({
     latitude: coordinates?.latitude,
     longitude: coordinates?.longitude,
@@ -1209,7 +1209,7 @@ const ViewNearbyAgencies = () => {
   }, [fetchLocation]);
 
   if (loading) return <h1>Wait while we fetch your location</h1>;
-  if (fetching || isPending) return <h1>Loading...</h1>;
+  if (isPending) return <h1>Loading...</h1>;
   if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
 
   return (
