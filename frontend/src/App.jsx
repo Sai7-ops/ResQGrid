@@ -677,7 +677,7 @@ const useGeolocation = (options = {}) => {
       },
       geoOptions,
     );
-  }, [options]);
+  }, []);
 
   return { coordinates, loading, error, fetchLocation };
 };
