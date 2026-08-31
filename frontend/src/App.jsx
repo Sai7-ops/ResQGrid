@@ -8,6 +8,7 @@ import {
   Outlet,
   NavLink,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import "./App.css";
 import {
@@ -83,6 +84,7 @@ import {
   LogOut,
   Bell,
   Ambulance,
+  AlertCircleIcon,
 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -293,6 +295,11 @@ function App() {
             <Route path="/user" element={<UserLayout />}>
               <Route path="home" element={<UserHome />} />
               <Route path="sosForm" element={<UserSOSForm />} />
+              <Route path="nearbyAgencies" element={<NearbyAgencies />} />
+              <Route
+                path="viewNearbyAgencies"
+                element={<ViewNearbyAgencies />}
+              />
               <Route path="sosInbox" element={<UserSOSInbox />} />
               <Route path="inbox" element={<UserInbox />} />
             </Route>
@@ -910,6 +917,439 @@ const UserSOSInbox = () => {
   );
 };
 
+const apiGetNearbyAgencies = async (payload) => {
+  const { latitude, longitude, disaster_type } = payload;
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/user/nearbyAgencies",
+    {
+      params: {
+        latitude,
+        longitude,
+        ...(disaster_type && { disaster_type }),
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useNearbyAgencies = () => {
+  const { latitude, longitude, disaster_type } = useParams();
+  const payload = {
+    latitude,
+    longitude,
+    disaster_type,
+  };
+  const { data: nearbyAgencies, isPending } = useQuery({
+    queryKey: ["nearbyAgencies", latitude, longitude, disaster_type || "all"],
+    queryFn: () => apiGetNearbyAgencies(payload),
+    enabled: !latitude || !longitude,
+  });
+  return { nearbyAgencies, isPending };
+};
+
+const apiAlertAgency = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/user/alertAgency`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useAlertAgency = () => {
+  const { mutate: alertAgency, isPending } = useMutation({
+    mutationFn: apiAlertAgency,
+  });
+  return { alertAgency, isPending };
+};
+
+const NearbyAgencies = () => {
+  const { coordinates, loading, fetchLocation } = useGeolocation();
+  const { nearbyAgencies, isPending } = useNearbyAgencies();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [disasterType, setDisasterType] = useState("medical_emergency");
+  const { user } = useUserAuth();
+  const { alert_status, isPending: fetching } = useGetAlertStatus();
+  const [active, setActive] = useState(false);
+  const [description, setDescription] = useState("");
+  const [isVictim, setIsVictim] = useState(false);
+  const { alertAgency, isPending: alerting } = useAlertAgency();
+
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
+
+  useEffect(() => {
+    if (coordinates.latitude != null && coordinates.longitude != null) {
+      searchParams.set("latitude", coordinates.latitude);
+      searchParams.set("longitude", coordinates.longitude);
+      setSearchParams(searchParams);
+    }
+  }, [coordinates, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (disasterType) {
+      searchParams.set("disaster_type", disasterType);
+      setSearchParams(searchParams);
+    }
+  }, [disasterType, searchParams, setSearchParams]);
+
+  const reset = () => {
+    setDescription("");
+    setIsVictim(false);
+  };
+
+  const submitHandler = (agency) => {
+    const payload = {
+      latitide: coordinates.latitude,
+      longitude: coordinates.longitude,
+      description,
+      is_victim: isVictim,
+      disaster_type: disasterType,
+      agency,
+    };
+    alertAgency(payload, {
+      onSuccess: (data) => {
+        toast.success("SOS triggered successfully");
+        queryClient.setQueryData(["activeSos", data.user_id], {
+          ...data,
+          active: true,
+        });
+        setActive(true);
+      },
+      onError: (err) =>
+        toast.error(err.response?.data?.message || "Failed to trigger SOS"),
+      onSettled: reset(),
+    });
+  };
+
+  if (loading || isPending || fetching)
+    return <h1>Wait while we fetch your location</h1>;
+  if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
+
+  return (
+    <div>
+      <div>
+        <label className="floating-label">
+          <span>DISASTER TYPE</span>
+          <select
+            className="select select-accent"
+            value={disasterType}
+            onChange={(e) => setDisasterType(e.target.value)}
+          >
+            <option value="">ALL</option>
+            <option value="medical_emergency">MEDICAL EMERGENCY</option>
+            <option value="fire">FIRE</option>
+            <option value="flood">FLOOD</option>
+            <option value="cyclone">CYCLONE</option>
+            <option value="earthquake">EARTHQUAKE</option>
+            <option value="crowd_hazard">CROWD HAZARD</option>
+          </select>
+        </label>
+      </div>
+      <h1>Nearby Agenices</h1>
+      <div>
+        <h3>Below data will be sent to agency if you trigger SOS</h3>
+        <div>
+          <label className="floating-label">
+            <span>Description (optional)</span>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </label>
+        </div>
+        <div>
+          <label htmlFor="is_victim">Are you victim?</label>
+          <input
+            type="checkbox"
+            checked={isVictim}
+            onChange={(e) => setIsVictim(e.target.value)}
+          />
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Agency ID</th>
+              <th>Agency Name</th>
+              <th>Category</th>
+              <th>Distance</th>
+              <th>Hotline No</th>
+              <th>HQ Location Address</th>
+              <th>Official Email</th>
+              <th>Updated On</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nearbyAgencies.map((agency) => {
+              return (
+                <tr>
+                  <td>{agency.agency_id}</td>
+                  <td>{agency.agency_name}</td>
+                  <td>{agency.category}</td>
+                  <td>{agency.distance_km} km away</td>
+                  <td>{agency.hotline_no}</td>
+                  <td>{agency.hq_location_address}</td>
+                  <td>{agency.official_email}</td>
+                  <td>{agency.updated_on}</td>
+                  <td>
+                    {alert_status.length > 0 || active ? (
+                      <button
+                        disabled={alerting}
+                        onClick={() => submitHandler(agency)}
+                        className="btn btn-xs btn-danger"
+                      >
+                        Trigger SOS
+                      </button>
+                    ) : (
+                      "Not Available"
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <MapContainer
+          center={[coordinates.latitude, coordinates.longitude]}
+          zoom={13}
+          style={{ height: "450px", width: "100%", zIndex: 0 }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {nearbyAgencies.map((agency) => {
+            const [lng, lat] = agency.hq_location.coordinates;
+            return (
+              <Marker
+                key={agency.agency_id}
+                position={[lat, lng]}
+                icon={unitIcon}
+              >
+                <Popup>
+                  <div className="p-1 text-center">
+                    <strong className="block text-sm font-bold text-slate-900">
+                      {agency.agency_name}
+                    </strong>
+                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                      {agency.category}
+                    </span>
+                    <p>{agency.distance_away}km away</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Distance: {agency.distance_km}
+                    </p>
+
+                    <button
+                      disabled={alerting}
+                      onClick={() => submitHandler(agency)}
+                      className="btn btn-xs btn-danger"
+                    >
+                      Trigger SOS
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+          <Marker
+            position={[coordinates.latitude, coordinates.longitude]}
+            icon={userLocationIcon}
+          >
+            <Popup>
+              <div className="p-1 text-center">
+                <strong className="block text-sm font-bold text-slate-900">
+                  Your Location
+                </strong>
+                <p className="text-xs text-slate-500">
+                  USER ID: {user.user_id}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        </MapContainer>
+      </div>
+    </div>
+  );
+};
+
+const apiViewNearbyAgencies = async (payload) => {
+  const { latitude, longitude, disaster_type } = payload;
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/user/viewNearbyAgencies",
+    {
+      params: {
+        latitude,
+        longitude,
+        ...(disaster_type && { disaster_type }),
+      },
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useViewNearbyAgencies = () => {
+  const { latitude, longitude, disaster_type } = useParams();
+  const payload = {
+    latitude,
+    longitude,
+    disaster_type,
+  };
+  const { data: nearbyAgencies, isPending } = useQuery({
+    queryKey: ["nearbyAgencies", latitude, longitude, disaster_type || "all"],
+    queryFn: () => apiViewNearbyAgencies(payload),
+    enabled: !latitude || !longitude,
+  });
+  return { nearbyAgencies, isPending };
+};
+
+const ViewNearbyAgencies = () => {
+  const { coordinates, loading, fetchLocation } = useGeolocation();
+  const { nearbyAgencies, isPending } = useViewNearbyAgencies();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [disasterType, setDisasterType] = useState("medical_emergency");
+  const { user } = useUserAuth();
+
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
+
+  useEffect(() => {
+    if (coordinates.latitude != null && coordinates.longitude != null) {
+      searchParams.set("latitude", coordinates.latitude);
+      searchParams.set("longitude", coordinates.longitude);
+      setSearchParams(searchParams);
+    }
+  }, [coordinates, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (disasterType) {
+      searchParams.set("disaster_type", disasterType);
+      setSearchParams(searchParams);
+    }
+  }, [disasterType, searchParams, setSearchParams]);
+
+  if (loading || isPending) return <h1>Wait while we fetch your location</h1>;
+  if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
+
+  return (
+    <div>
+      <div>
+        <label className="floating-label">
+          <span>DISASTER TYPE</span>
+          <select
+            className="select select-accent"
+            value={disasterType}
+            onChange={(e) => setDisasterType(e.target.value)}
+          >
+            <option value="">ALL</option>
+            <option value="medical_emergency">MEDICAL EMERGENCY</option>
+            <option value="fire">FIRE</option>
+            <option value="flood">FLOOD</option>
+            <option value="cyclone">CYCLONE</option>
+            <option value="earthquake">EARTHQUAKE</option>
+            <option value="crowd_hazard">CROWD HAZARD</option>
+          </select>
+        </label>
+      </div>
+      <h1>Nearby Agenices</h1>
+      <div>
+        <h3>Below data will be sent to agency if you trigger SOS</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Agency ID</th>
+              <th>Agency Name</th>
+              <th>Category</th>
+              <th>Distance</th>
+              <th>Hotline No</th>
+              <th>HQ Location Address</th>
+              <th>Official Email</th>
+              <th>Updated On</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nearbyAgencies.map((agency) => {
+              return (
+                <tr>
+                  <td>{agency.agency_id}</td>
+                  <td>{agency.agency_name}</td>
+                  <td>{agency.category}</td>
+                  <td>{agency.distance_km} km away</td>
+                  <td>{agency.hotline_no}</td>
+                  <td>{agency.hq_location_address}</td>
+                  <td>{agency.official_email}</td>
+                  <td>{agency.updated_on}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <MapContainer
+          center={[coordinates.latitude, coordinates.longitude]}
+          zoom={13}
+          style={{ height: "450px", width: "100%", zIndex: 0 }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {nearbyAgencies.map((agency) => {
+            const [lng, lat] = agency.hq_location.coordinates;
+            return (
+              <Marker
+                key={agency.agency_id}
+                position={[lat, lng]}
+                icon={unitIcon}
+              >
+                <Popup>
+                  <div className="p-1 text-center">
+                    <strong className="block text-sm font-bold text-slate-900">
+                      {agency.agency_name}
+                    </strong>
+                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                      {agency.category}
+                    </span>
+                    <p>{agency.distance_away}km away</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Distance: {agency.distance_km}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+          <Marker
+            position={[coordinates.latitude, coordinates.longitude]}
+            icon={userLocationIcon}
+          >
+            <Popup>
+              <div className="p-1 text-center">
+                <strong className="block text-sm font-bold text-slate-900">
+                  Your Location
+                </strong>
+                <p className="text-xs text-slate-500">
+                  USER ID: {user.user_id}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        </MapContainer>
+      </div>
+    </div>
+  );
+};
+
 const UserInbox = () => {
   const inboxRef = useRef(null);
   useEffect(() => {
@@ -1185,6 +1625,8 @@ const UserLayout = () => {
   const navLinks = [
     { to: "/user/home", label: "Home", Icon: HomeIcon },
     { to: "/user/sosForm", label: "Trigger SOS", Icon: AlertTriangle },
+    { to: "/user/nearbyAgencies", label: "Alert Agency", Icon: AlertCircleIcon},
+    { to: "/user/viewNearbyAgencies", label: "View Agencies", Icon: Eye},
     { to: "/user/sosInbox", label: "My Alerts", Icon: Siren },
     { to: "/user/inbox", label: "Inbox", Icon: Inbox },
   ];
@@ -1517,7 +1959,7 @@ const UserSOSForm = () => {
       latitude: data.latitude,
       longitude: data.longitude,
       disaster_type: data.disaster_type,
-      is_victim: data.is_victim || false,
+      is_victim: data.is_victim || true,
       description: data.description || null,
     };
     triggerSos(payload, {

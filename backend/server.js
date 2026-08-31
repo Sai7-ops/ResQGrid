@@ -798,6 +798,251 @@ function getBhopalZone(longitude, latitude) {
   }
 }
 
+const alertAgency = catchAsync(async (req, res) => {
+  const { latitude, longitude, disaster_type, is_victim, description, agency } =
+    req.body;
+  const user_id = req.user.user_id;
+  const { zone_id, zone_name } = getBhopalZone(longitude, latitude);
+
+  const result = await pool.query(
+    `insert into sos_requests(user_id, triggered_location, disaster_type, is_victim, description, zone_id, zone_name) values
+    ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, $4, $5,  $6, $7, $8) RETURNING sos_id,
+    user_id,
+    triggered_at,
+    status,
+    disaster_type,
+    is_victim,
+    description,
+    ST_AsGeoJSON(triggered_location)::json AS location,
+    zone_id,
+    zone_name
+    `,
+    [
+      user_id,
+      longitude,
+      latitude,
+      disaster_type,
+      is_victim,
+      description,
+      zone_id,
+      zone_name,
+    ],
+  );
+  const sos_request = result.rows[0];
+  await pool.query(
+    `INSERT INTO agency_sos_inbox 
+         (sos_id, agency_id, matched_capabilities, distance_meters)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (agency_id, sos_id) DO NOTHING`,
+    [
+      sos_request.sos_id,
+      agency.agency_id,
+      agency.matched_tags,
+      agency.distance_meters,
+    ],
+  );
+
+  const io = req.app.get("io");
+
+  io.to(`user_${user_id}`).emit("SOS_ALERT_TRIGGERED", sos_request);
+  io.to(`official_ADMIN_${zone_id}`).emit("NEW_GOVT_SOS_ALERT", sos_request);
+  io.to(`official_SUPER_ADMIN_${zone_id}`).emit(
+    "NEW_GOVT_SOS_ALERT",
+    sos_request,
+  );
+  io.to(`official_USER_ADMIN_${zone_id}`).emit(
+    "NEW_GOVT_SOS_ALERT",
+    sos_request,
+  );
+
+  console.log("📡 EMITTING SOS TO ROOM:", `agency_${agency.agency_id}`);
+  io.to(`agency_${agency.agency_id}`).emit("NEW_SOS_ALERT", {
+    sos_id: sos_request.sos_id,
+    user_id: sos_request.user_id,
+    status: sos_request.status,
+    disaster_type: sos_request.disaster_type,
+    description: sos_request.description,
+    location: [longitude, latitude],
+    triggered_at: sos_request.triggered_at,
+    matched_capabilities: agency.matched_tags,
+    distance_meters: agency.distance_meters,
+  });
+
+  res.status(200).json({
+    message: "Agency has been notified. Will be arriving shortly",
+    user_id,
+  });
+});
+
+const viewNearbyAgencies = catchAsync(async (req, res) => {
+  const { latitude, longitude, disaster_type } = req.query;
+  const requiredTags = DISASTER_CAPABILITY_MAPPING[disaster_type].primary;
+
+  const result = await pool.query(
+    `
+    SELECT
+      a.agency_id,
+      a.agency_name,
+      a.category,
+      a.hotline_no,
+      a.official_email,
+      a.coverage_radius_km,
+      a.hq_location_address,
+      a.hq_coordinates,
+
+      ARRAY_AGG(DISTINCT tag) AS matched_tags,
+
+ROUND(
+  (
+    ST_Distance(
+      a.hq_coordinates,
+      ST_SetSRID(
+        ST_MakePoint($2, $3),
+        4326
+      )::geography
+    ) / 1000
+  )::numeric,
+  2
+) AS distance_km
+
+      a.updated_on
+
+    FROM agencies a,
+         UNNEST(a.primary_capabilities_tags) AS tag
+
+    WHERE tag = ANY($1::text[])
+
+      AND a.is_active = true
+      AND a.is_verified = true
+
+      AND ST_DWithin(
+        a.hq_coordinates,
+        ST_SetSRID(
+          ST_MakePoint($2, $3),
+          4326
+        )::geography,
+        a.coverage_radius_km * 1000
+      )
+
+    GROUP BY
+      a.agency_id,
+      a.agency_name,
+      a.category,
+      a.hotline_no,
+      a.official_email,
+      a.coverage_radius_km,
+      a.hq_location_address,
+      a.hq_coordinates,
+      a.updated_on
+
+    ORDER BY distance_meters ASC;
+    `,
+    [requiredTags, longitude, latitude],
+  );
+
+  return res.status(200).json(result.rows);
+});
+
+const getNearbyAgencies = catchAsync(async (req, res) => {
+  const { latitude, longitude, disaster_type } = req.query;
+
+  const requiredTags = DISASTER_CAPABILITY_MAPPING[disaster_type].primary;
+
+  const baseQuery = (bufferKm = 0) => `
+    SELECT 
+        a.agency_id,
+  a.agency_name,
+  a.category,
+  a.hotline_no,
+  a.official_email,
+  a.coverage_radius_km,
+  a.hq_location_address,
+  a.hq_coordinates,
+  a.updated_on,
+
+      ARRAY_AGG(DISTINCT tag) AS matched_tags,
+
+ROUND(
+  (
+    ST_Distance(
+      a.hq_coordinates,
+      ST_SetSRID(
+        ST_MakePoint($2, $3),
+        4326
+      )::geography
+    ) / 1000
+  )::numeric,
+  2
+) AS distance_km
+
+    FROM agencies a,
+         UNNEST(a.primary_capabilities_tags) AS tag
+
+    WHERE tag = ANY($1::text[])
+
+      AND a.is_active = true
+      AND a.is_verified = true
+
+      AND ST_DWithin(
+        a.hq_coordinates,
+        ST_SetSRID(
+          ST_MakePoint($2, $3),
+          4326
+        )::geography,
+        (a.coverage_radius_km + ${bufferKm}) * 1000
+      )
+
+      AND EXISTS (
+        SELECT 1
+        FROM agency_units au
+        WHERE au.agency_id = a.agency_id
+          AND au.unit_type = tag
+          AND au.status = 'AVAILABLE'
+      )
+
+    GROUP BY
+  a.agency_id,
+  a.agency_name,
+  a.category,
+  a.hotline_no,
+  a.official_email,
+  a.coverage_radius_km,
+  a.hq_location_address,
+  a.hq_coordinates,
+  a.updated_on
+
+    ORDER BY distance_meters ASC;
+  `;
+
+  let result = await pool.query(baseQuery(0), [
+    requiredTags,
+    longitude,
+    latitude,
+  ]);
+
+  const foundTags = new Set(result.rows.flatMap((r) => r.matched_tags || []));
+
+  const missingTags = requiredTags.filter((tag) => !foundTags.has(tag));
+
+  if (missingTags.length > 0) {
+    const fallbackResult = await pool.query(baseQuery(5), [
+      missingTags,
+      longitude,
+      latitude,
+    ]);
+
+    const existingAgencyIds = new Set(result.rows.map((r) => r.agency_id));
+
+    const newAgencies = fallbackResult.rows.filter(
+      (r) => !existingAgencyIds.has(r.agency_id),
+    );
+
+    return res.status(200).json([...result.rows, ...newAgencies]);
+  }
+
+  return res.status(200).json(result.rows);
+});
+
 const triggerSos = catchAsync(async (req, res) => {
   const { latitude, longitude, disaster_type, is_victim, description } =
     req.body;
@@ -853,8 +1098,6 @@ const triggerSos = catchAsync(async (req, res) => {
       ],
     );
   }
-
-  console.log(agencies);
 
   const io = req.app.get("io");
 
@@ -922,7 +1165,6 @@ export const findNearestAgencies = async (
         ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
         (a.coverage_radius_km + ${bufferKm}) * 1000
       )
-      -- Exclude agencies that have already been dispatched or declined this SOS
       AND a.agency_id NOT IN (
         SELECT agency_id 
         FROM sos_dispatches 
@@ -1423,6 +1665,9 @@ app.post("/api/user/verifyUserSmsOtp", verifyUserSmsOtp);
 app.post("/api/user/register", registerUser);
 app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
+app.post("/api/user/nearbyAgencies", verifyUserJWT, getNearbyAgencies);
+app.post("/api/user/viewNearbyAgencies", verifyUserJWT, viewNearbyAgencies);
+app.post("/api/user/alertAgency", verifyUserJWT, alertAgency);
 app.post("/api/user/logout", verifyUserJWT, logoutUser);
 app.get("/api/govt/sosAlerts", verifyGovtJWT, getGovtSosAlerts);
 app.get("/api/govt/sosDispatches", verifyGovtJWT, getGovtDispatches);
