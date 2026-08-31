@@ -903,7 +903,7 @@ ROUND(
     ) / 1000
   )::numeric,
   2
-) AS distance_km
+) AS distance_km,
 
       a.updated_on
 
@@ -935,7 +935,7 @@ ROUND(
       a.hq_coordinates,
       a.updated_on
 
-    ORDER BY distance_meters ASC;
+    ORDER BY distance_km ASC;
     `,
     [requiredTags, longitude, latitude],
   );
@@ -1011,7 +1011,7 @@ ROUND(
   a.hq_coordinates,
   a.updated_on
 
-    ORDER BY distance_meters ASC;
+    ORDER BY distance_km ASC;
   `;
 
   let result = await pool.query(baseQuery(0), [
