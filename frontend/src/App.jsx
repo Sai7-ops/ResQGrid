@@ -697,7 +697,7 @@ const apiGetAlertStatus = async (user_id) => {
 const useGetAlertStatus = () => {
   const { user } = useUserAuth();
   const { user_id } = user;
-  const { data: alert_status=[], isPending } = useQuery({
+  const { data: alert_status = [], isPending } = useQuery({
     queryKey: ["activeSos", user_id],
     queryFn: () => apiGetAlertStatus(user_id),
   });
@@ -975,7 +975,7 @@ const NearbyAgencies = () => {
   const { nearbyAgencies, isPending } = useNearbyAgencies();
   const [searchParams, setSearchParams] = useSearchParams();
   const [disasterType, setDisasterType] = useState("medical_emergency");
-  const { user } = useUserAuth();
+  const { user, isPending: fetchingUser } = useUserAuth();
   const { alert_status, isPending: fetching } = useGetAlertStatus();
   const [active, setActive] = useState(false);
   const [description, setDescription] = useState("");
@@ -1030,8 +1030,8 @@ const NearbyAgencies = () => {
     });
   };
 
-  if (loading || isPending || fetching)
-    return <h1>Wait while we fetch your location</h1>;
+  if (loading) return <h1>Wait while we fetch your location</h1>;
+  if (fetchingUser || isPending || fetching) return <h1>Loading</h1>;
   if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
 
   return (
@@ -1224,7 +1224,7 @@ const ViewNearbyAgencies = () => {
   const { nearbyAgencies, isPending } = useViewNearbyAgencies();
   const [searchParams, setSearchParams] = useSearchParams();
   const [disasterType, setDisasterType] = useState("medical_emergency");
-  const { user } = useUserAuth();
+  const { user, isPending: fetching } = useUserAuth();
 
   useEffect(() => {
     fetchLocation();
@@ -1245,7 +1245,8 @@ const ViewNearbyAgencies = () => {
     }
   }, [disasterType, searchParams, setSearchParams]);
 
-  if (loading || isPending) return <h1>Wait while we fetch your location</h1>;
+  if (loading) return <h1>Wait while we fetch your location</h1>;
+  if (fetching || isPending) return <h1>Loading...</h1>;
   if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
 
   return (
