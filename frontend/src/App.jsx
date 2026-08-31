@@ -697,7 +697,7 @@ const apiGetAlertStatus = async (user_id) => {
 const useGetAlertStatus = () => {
   const { user } = useUserAuth();
   const { user_id } = user;
-  const { data: alert_status, isPending } = useQuery({
+  const { data: alert_status=[], isPending } = useQuery({
     queryKey: ["activeSos", user_id],
     queryFn: () => apiGetAlertStatus(user_id),
   });
@@ -934,16 +934,20 @@ const apiGetNearbyAgencies = async (payload) => {
 };
 
 const useNearbyAgencies = () => {
-  const { latitude, longitude, disaster_type } = useParams();
+  const [searchParams] = useSearchParams();
+  const latitude = searchParams.get("latitude");
+  const longitude = searchParams.get("longitude");
+  const disaster_type = searchParams.get("disaster_type");
+
   const payload = {
     latitude,
     longitude,
     disaster_type,
   };
-  const { data: nearbyAgencies, isPending } = useQuery({
+  const { data: nearbyAgencies = [], isPending } = useQuery({
     queryKey: ["nearbyAgencies", latitude, longitude, disaster_type || "all"],
     queryFn: () => apiGetNearbyAgencies(payload),
-    enabled: !latitude || !longitude,
+    enabled: !!latitude || !!longitude,
   });
   return { nearbyAgencies, isPending };
 };
@@ -1004,7 +1008,7 @@ const NearbyAgencies = () => {
 
   const submitHandler = (agency) => {
     const payload = {
-      latitide: coordinates.latitude,
+      latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       description,
       is_victim: isVictim,
@@ -1022,7 +1026,7 @@ const NearbyAgencies = () => {
       },
       onError: (err) =>
         toast.error(err.response?.data?.message || "Failed to trigger SOS"),
-      onSettled: reset(),
+      onSettled: reset,
     });
   };
 
@@ -1068,7 +1072,7 @@ const NearbyAgencies = () => {
           <input
             type="checkbox"
             checked={isVictim}
-            onChange={(e) => setIsVictim(e.target.value)}
+            onChange={(e) => setIsVictim(e.target.checked)}
           />
         </div>
         <table>
@@ -1197,16 +1201,20 @@ const apiViewNearbyAgencies = async (payload) => {
 };
 
 const useViewNearbyAgencies = () => {
-  const { latitude, longitude, disaster_type } = useParams();
+  const [searchParams] = useSearchParams();
+
+  const latitude = searchParams.get("latitude");
+  const longitude = searchParams.get("longitude");
+  const disaster_type = searchParams.get("disaster_type");
   const payload = {
     latitude,
     longitude,
     disaster_type,
   };
-  const { data: nearbyAgencies, isPending } = useQuery({
+  const { data: nearbyAgencies = [], isPending } = useQuery({
     queryKey: ["nearbyAgencies", latitude, longitude, disaster_type || "all"],
     queryFn: () => apiViewNearbyAgencies(payload),
-    enabled: !latitude || !longitude,
+    enabled: !!latitude || !!longitude,
   });
   return { nearbyAgencies, isPending };
 };
@@ -1625,8 +1633,12 @@ const UserLayout = () => {
   const navLinks = [
     { to: "/user/home", label: "Home", Icon: HomeIcon },
     { to: "/user/sosForm", label: "Trigger SOS", Icon: AlertTriangle },
-    { to: "/user/nearbyAgencies", label: "Alert Agency", Icon: AlertCircleIcon},
-    { to: "/user/viewNearbyAgencies", label: "View Agencies", Icon: Eye},
+    {
+      to: "/user/nearbyAgencies",
+      label: "Alert Agency",
+      Icon: AlertCircleIcon,
+    },
+    { to: "/user/viewNearbyAgencies", label: "View Agencies", Icon: Eye },
     { to: "/user/sosInbox", label: "My Alerts", Icon: Siren },
     { to: "/user/inbox", label: "Inbox", Icon: Inbox },
   ];
