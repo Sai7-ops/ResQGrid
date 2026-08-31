@@ -166,124 +166,287 @@ io.on("connection", async (socket) => {
 
     socket.on("CLAIM_SOS_CAPABILITY", async (payload, callback) => {
       const { sos_id, unit_type, unit_id, agency_id } = payload;
+
+      const client = await pool.connect();
+
       try {
-        const sos_request = await pool.query(
+        await client.query("BEGIN");
+
+        const sosResult = await client.query(
           `
-        update sos_requests
-        set status='dispatched'
-        where sos_id=$1 AND status NOT IN ('resolved', 'cancelled')
-        returning *
-        `,
+      SELECT *
+      FROM sos_requests
+      WHERE sos_id = $1
+      FOR UPDATE
+      `,
           [sos_id],
         );
 
-        if (sos_request.rowCount === 0) {
+        if (sosResult.rowCount === 0) {
+          await client.query("ROLLBACK");
+
           return callback?.({
             success: false,
-            message: "SOS not found or already resolved/cancelled.",
+            message: `SOS #${sos_id} was not found.`,
           });
         }
 
-        const { zone_id, zone_name } = sos_request.rows[0];
+        const sos_request = sosResult.rows[0];
 
-        const dispatch = await pool.query(
-          `INSERT INTO sos_dispatches (sos_id, agency_id, unit_type, unit_id, status, zone_id, zone_name)
-           VALUES ($1, $2, $3, $4, 'EN ROUTE', $5, $6)
-           ON CONFLICT (sos_id, unit_type) DO NOTHING
-           RETURNING *`,
-          [sos_id, agency_id, unit_type, unit_id, zone_id, zone_name],
+        const existingDispatch = await client.query(
+          `
+      SELECT
+          sd.sos_id,
+          sd.dispatch_id,
+          ud.agency_id,
+          ud.unit_id,
+          ud.unit_type,
+          ud.status
+      FROM sos_dispatches sd
+      JOIN unit_dispatches ud
+        ON ud.dispatch_id = sd.dispatch_id
+      WHERE sd.sos_id = $1
+      FOR UPDATE
+      `,
+          [sos_id],
         );
 
-        const user_id = sos_request.rows[0].user_id;
+        if (existingDispatch.rowCount > 0) {
+          const existing = existingDispatch.rows[0];
 
-        if (dispatch.rowCount === 0) {
-          return (
-            typeof callback === "function" &&
-            callback({
-              success: false,
-              message: `The '${unit_type}' role for SOS #${sos_id} was already claimed by another agency.`,
-            })
+          await client.query("ROLLBACK");
+
+          return callback?.({
+            success: false,
+            code: "SOS_ALREADY_CLAIMED",
+            message: `SOS #${sos_id} is already being handled by another unit.`,
+            dispatch: {
+              dispatch_id: existing.dispatch_id,
+              agency_id: existing.agency_id,
+              unit_id: existing.unit_id,
+              unit_type: existing.unit_type,
+              status: existing.status,
+            },
+          });
+        }
+
+        const unitResult = await client.query(
+          `
+      SELECT
+          au.*,
+          ST_AsGeoJSON(au.current_location)::json AS location
+      FROM agency_units au
+      WHERE au.unit_id = $1
+        AND au.agency_id = $2
+      FOR UPDATE
+      `,
+          [unit_id, agency_id],
+        );
+
+        if (unitResult.rowCount === 0) {
+          await client.query("ROLLBACK");
+
+          return callback?.({
+            success: false,
+            code: "UNIT_NOT_FOUND",
+            message: "The selected unit was not found.",
+          });
+        }
+
+        const unit = unitResult.rows[0];
+
+        const capacityResult = await client.query(
+          `
+      SELECT COUNT(*)::int AS active_sos_count
+      FROM sos_dispatches sd
+      JOIN unit_dispatches ud
+        ON ud.dispatch_id = sd.dispatch_id
+      JOIN sos_requests sr
+        ON sr.sos_id = sd.sos_id
+      WHERE ud.unit_id = $1
+        AND ud.status NOT IN ('RESOLVED', 'CANCELLED')
+        AND sr.status NOT IN ('resolved', 'cancelled')
+      `,
+          [unit_id],
+        );
+
+        const activeSosCount = capacityResult.rows[0].active_sos_count;
+        const sosCapacity = unit.sos_capacity;
+
+        if (activeSosCount >= sosCapacity) {
+          await client.query("ROLLBACK");
+
+          return callback?.({
+            success: false,
+            code: "UNIT_CAPACITY_FULL",
+            message: `Unit ${unit.unit_name} has reached its SOS capacity.`,
+            current_load: activeSosCount,
+            sos_capacity: sosCapacity,
+          });
+        }
+
+        let dispatchResult = await client.query(
+          `
+      select *
+      from unit_dispatches
+      where unit_id = $1
+        and status not in ('RESOLVED', 'CANCELLED')
+      order by dispatch_id desc
+      limit 1
+      for update
+      `,
+          [unit_id],
+        );
+
+        let dispatchData;
+
+        if (dispatchResult.rowCount > 0) {
+
+          dispatchData = dispatchResult.rows[0];
+        } else {
+
+          const newDispatch = await client.query(
+            `
+        insert into unit_dispatches (
+          agency_id,
+          unit_type,
+          unit_id,
+          status,
+          assigned_at,
+          updated_at,
+          zone_id,
+          zone_name
+        )
+        values (
+          $1,
+          $2,
+          $3,
+          'EN ROUTE',
+          current_timestamp,
+          current_timestamp,
+          $4,
+          $5,
+        )
+        returning *
+        `,
+            [
+              agency_id,
+              unit_type,
+              unit_id,
+              sos_request.zone_id,
+              sos_request.zone_name,
+            ],
           );
+
+          dispatchData = newDispatch.rows[0];
         }
 
-        const dispatchData = dispatch.rows[0];
+        const dispatch_id = dispatchData.dispatch_id;
 
-        const result = await pool.query(
-          `SELECT *, ST_AsGeoJSON(current_location)::json AS location from agency_units where unit_id=$1`,
-          [unit_id],
-        );
-        const unit = result.rows[0];
-        const unit_name = unit.unit_name;
-        const unit_location = unit.location;
-
-        await pool.query(
-          `UPDATE agency_units SET status = 'EN_ROUTE' WHERE unit_id = $1 AND status = 'AVAILABLE'`,
-          [unit_id],
+        await client.query(
+          `
+      insert into sos_dispatches (
+        dispatch_id,
+        sos_id
+      )
+      values ($1, $2)
+      `,
+          [dispatch_id, sos_id],
         );
 
-        if (typeof callback === "function") {
-          callback({
-            success: true,
-            dispatch: dispatchData,
-          });
-        }
+        await client.query(
+          `
+      update sos_requests
+      set
+        status = 'dispatched'
+      where sos_id = $1
+      `,
+          [sos_id],
+        );
 
-        io.to(`agency_${zone_id}`).emit("CAPABILITY_CLAIMED", {
+        await client.query(
+          `
+      update agency_units
+      set
+        status = 'EN_ROUTE'
+      where unit_id = $1
+      `,
+          [unit_id],
+        );
+
+
+        const agencyResult = await client.query(
+          `
+      select agency_name
+      from agencies
+      where agency_id = $1
+      `,
+          [agency_id],
+        );
+
+        const agency_name = agencyResult.rows[0]?.agency_name;
+
+        await client.query("COMMIT");
+
+        callback?.({
+          success: true,
+          message: "SOS successfully claimed.",
+          dispatch: dispatchData,
+          sos_id,
+          current_load: activeSosCount + 1,
+          sos_capacity: sosCapacity,
+        });
+
+        io.to(`agency_${sos_request.zone_id}`).emit("CAPABILITY_CLAIMED", {
           sos_id,
           claimed_unit_type: unit_type,
           claimed_by_agency_id: agency_id,
+          unit_id,
+          dispatch_id,
         });
 
-        io.to(`official_SUPER_ADMIN_${zone_id}`).emit("NEW_SOS_DISPATCH", {
+        const dispatchPayload = {
           sos_id,
-          dispatch_id: dispatchData.dispatch_id,
+          dispatch_id,
           agency_name,
           unit_type,
-          unit_name,
+          unit_name: unit.unit_name,
           unit_id,
-          unit_location,
+          unit_location: unit.location,
           status: dispatchData.status,
           assigned_at: dispatchData.assigned_at,
-        });
-        io.to(`official_ADMIN_${zone_id}`).emit("NEW_SOS_DISPATCH", {
-          sos_id,
-          dispatch_id: dispatchData.dispatch_id,
-          agency_name,
-          unit_type,
-          unit_name,
-          unit_id,
-          unit_location,
-          status: dispatchData.status,
-          assigned_at: dispatchData.assigned_at,
-        });
-        io.to(`official_AGENCY_ADMIN_${zone_id}`).emit("NEW_SOS_DISPATCH", {
-          sos_id,
-          dispatch_id: dispatchData.dispatch_id,
-          agency_name,
-          unit_type,
-          unit_name,
-          unit_id,
-          unit_location,
-          status: dispatchData.status,
-          assigned_at: dispatchData.assigned_at,
-        });
+        };
 
-        io.to(`user_${user_id}`).emit("CITIZEN_UNIT_EN_ROUTE", {
-          sos_id,
-          dispatch_id: dispatchData.dispatch_id,
-          agency_name,
-          unit_type,
-          unit_name,
-          unit_id,
-          unit_location,
-          status: dispatchData.status,
-          assigned_at: dispatchData.assigned_at,
+        io.to(`official_SUPER_ADMIN_${sos_request.zone_id}`).emit(
+          "NEW_SOS_DISPATCH",
+          dispatchPayload,
+        );
+
+        io.to(`official_ADMIN_${sos_request.zone_id}`).emit(
+          "NEW_SOS_DISPATCH",
+          dispatchPayload,
+        );
+
+        io.to(`official_AGENCY_ADMIN_${sos_request.zone_id}`).emit(
+          "NEW_SOS_DISPATCH",
+          dispatchPayload,
+        );
+
+        io.to(`user_${sos_request.user_id}`).emit(
+          "CITIZEN_UNIT_EN_ROUTE",
+          dispatchPayload,
+        );
+      } catch (error) {
+        await client.query("ROLLBACK");
+
+        console.error("CLAIM_SOS_CAPABILITY ERROR:", error);
+
+        callback?.({
+          success: false,
+          message: "Failed to claim SOS.",
         });
-      } catch (err) {
-        console.error("Error claiming SOS capability:", err);
-        if (typeof callback === "function") {
-          callback({ success: false, message: "Internal server error." });
-        }
+      } finally {
+        client.release();
       }
     });
   }
@@ -579,16 +742,42 @@ const getMyAgency = catchAsync(async (req, res) => {
 
 const getAgencyUnits = catchAsync(async (req, res) => {
   const agency_id = req.agency.agency_id;
+
   const result = await pool.query(
-    `select *, ST_AsGeoJSON(current_location)::json AS location from agency_units where agency_id=$1`,
+    `
+    SELECT
+      au.*,
+
+      ST_AsGeoJSON(au.current_location)::json AS location,
+
+      (
+        SELECT COUNT(*)
+        FROM sos_dispatches sd
+        JOIN unit_dispatches ud
+          ON ud.dispatch_id = sd.dispatch_id
+        JOIN sos_requests sr
+          ON sr.sos_id = sd.sos_id
+        WHERE ud.unit_id = au.unit_id
+          AND ud.status IN ('EN ROUTE', 'ON SCENE')
+          AND sr.status NOT IN ('resolved', 'cancelled')
+      )::int AS active_sos_count
+
+    FROM agency_units au
+
+    WHERE au.agency_id = $1
+
+    ORDER BY au.unit_id;
+    `,
     [agency_id],
   );
-  if (result.rowCount === 0)
+
+  if (result.rowCount === 0) {
     return res
       .status(200)
-      .json({ message: "No units stored under this agency curently!" });
-  const agency_units = result.rows;
-  return res.status(200).json(agency_units);
+      .json({ message: "No units stored under this agency currently!" });
+  }
+
+  return res.status(200).json(result.rows);
 });
 
 const verifyUser = catchAsync(async (req, res) => {
@@ -742,28 +931,34 @@ const getMe = catchAsync(async (req, res) => {
 
 export const DISASTER_CAPABILITY_MAPPING = {
   flood: {
-    primary: ["WATER RESCUE", "MEDICAL"],
-    support: ["POLICE", "FOOD DISTRIBUTION", "SHELTER", "HEAVY CLEARANCE"],
+    primary: ["WATER RESCUE"],
+    support: [
+      "POLICE",
+      "FOOD DISTRIBUTION",
+      "SHELTER",
+      "HEAVY CLEARANCE",
+      "MEDICAL",
+    ],
   },
   fire: {
-    primary: ["FIRE RESCUE", "MEDICAL", "POLICE"],
-    support: ["SHELTER"],
+    primary: ["FIRE RESCUE", "MEDICAL"],
+    support: ["SHELTER", "POLICE"],
   },
   earthquake: {
-    primary: ["HEAVY CLEARANCE", "MEDICAL", "POLICE"],
-    support: ["SHELTER", "FOOD DISTRIBUTION"],
+    primary: ["HEAVY CLEARANCE", "MEDICAL"],
+    support: ["SHELTER", "FOOD DISTRIBUTION", "POLICE"],
   },
   cyclone: {
-    primary: ["WATER RESCUE", "HEAVY CLEARANCE", "MEDICAL"],
-    support: ["POLICE", "SHELTER", "FOOD DISTRIBUTION"],
+    primary: ["WATER RESCUE", "HEAVY CLEARANCE"],
+    support: ["POLICE", "SHELTER", "FOOD DISTRIBUTION", "MEDICAL"],
   },
   medical_emergency: {
     primary: ["MEDICAL"],
     support: ["POLICE", "SHELTER"],
   },
   crowd_hazard: {
-    primary: ["POLICE", "MEDICAL", "HEAVY CLEARANCE"],
-    support: ["FOOD DISTRIBUTION", "SHELTER"],
+    primary: ["POLICE", "MEDICAL"],
+    support: ["FOOD DISTRIBUTION", "SHELTER", "HEAVY CLEARANCE"],
   },
 };
 
@@ -992,12 +1187,32 @@ ROUND(
         (a.coverage_radius_km + ${bufferKm}) * 1000
       )
 
-      AND EXISTS (
+     AND EXISTS (
         SELECT 1
         FROM agency_units au
+
         WHERE au.agency_id = a.agency_id
           AND au.unit_type = tag
-          AND au.status = 'AVAILABLE'
+
+          AND au.status IN (
+            'AVAILABLE',
+            'EN_ROUTE',
+            'ON_SCENE'
+          )
+
+          AND (
+            SELECT COUNT(*)
+            FROM sos_dispatches sd
+            JOIN unit_dispatches ud
+              ON ud.dispatch_id = sd.dispatch_id
+
+            WHERE ud.unit_id = au.unit_id
+
+              AND ud.status IN (
+                'EN ROUTE',
+                'ON SCENE'
+              )
+          ) < au.sos_capacity
       )
 
     GROUP BY
@@ -1139,7 +1354,9 @@ export const findNearestAgencies = async (
   disaster_type,
 ) => {
   const [longitude, latitude] = coordinates;
-  const requiredTags = DISASTER_CAPABILITY_MAPPING[disaster_type].primary;
+
+  const requiredTags =
+    DISASTER_CAPABILITY_MAPPING[disaster_type]?.primary || [];
 
   const baseQuery = (bufferKm = 0) => `
     SELECT 
@@ -1147,30 +1364,83 @@ export const findNearestAgencies = async (
       a.agency_name,
       a.hotline_no,
       a.coverage_radius_km,
-      -- Aggregate all matching capabilities this agency provides for this SOS
+
       ARRAY_AGG(DISTINCT tag) AS matched_tags,
+
       ROUND(
         ST_Distance(
           a.hq_coordinates,
-          ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography
-        )::numeric, 2
+          ST_SetSRID(
+            ST_MakePoint($2, $3),
+            4326
+          )::geography
+        )::numeric,
+        2
       ) AS distance_meters
-    FROM agencies a,
-         UNNEST(a.primary_capabilities_tags) AS tag
+
+    FROM agencies a
+
+    CROSS JOIN UNNEST(a.primary_capabilities_tags) AS tag
+
     WHERE tag = ANY($1::text[])
+
       AND a.is_active = true
       AND a.is_verified = true
+
       AND ST_DWithin(
         a.hq_coordinates,
-        ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
+        ST_SetSRID(
+          ST_MakePoint($2, $3),
+          4326
+        )::geography,
         (a.coverage_radius_km + ${bufferKm}) * 1000
       )
-      AND a.agency_id NOT IN (
-        SELECT agency_id 
-        FROM sos_dispatches 
-        WHERE sos_id = $4
+
+      AND EXISTS (
+        SELECT 1
+        FROM agency_units au
+
+        WHERE au.agency_id = a.agency_id
+          AND au.unit_type = tag
+
+          AND au.status IN (
+            'AVAILABLE',
+            'EN_ROUTE',
+            'ON_SCENE'
+          )
+
+          AND (
+            SELECT COUNT(*)
+            FROM sos_dispatches sd
+            JOIN unit_dispatches ud
+              ON ud.dispatch_id = sd.dispatch_id
+
+            WHERE ud.unit_id = au.unit_id
+
+              AND ud.status IN (
+                'EN ROUTE',
+                'ON SCENE'
+              )
+          ) < au.sos_capacity
       )
-    GROUP BY a.agency_id, a.agency_name, a.hotline_no, a.coverage_radius_km, a.hq_coordinates
+
+      AND NOT EXISTS (
+        SELECT 1
+        FROM sos_dispatches sd
+        JOIN unit_dispatches ud
+          ON ud.dispatch_id = sd.dispatch_id
+
+        WHERE sd.sos_id = $4
+          AND ud.agency_id = a.agency_id
+      )
+
+    GROUP BY
+      a.agency_id,
+      a.agency_name,
+      a.hotline_no,
+      a.coverage_radius_km,
+      a.hq_coordinates
+
     ORDER BY distance_meters ASC;
   `;
 
@@ -1182,10 +1452,12 @@ export const findNearestAgencies = async (
   ]);
 
   const foundTags = new Set(
-    result.rows.flatMap((r) => r.matched_tags || r.matched_agency_tag),
+    result.rows.flatMap((r) => r.matched_tags || [])
   );
 
-  const missingTags = requiredTags.filter((tag) => !foundTags.has(tag));
+  const missingTags = requiredTags.filter(
+    (tag) => !foundTags.has(tag)
+  );
 
   if (missingTags.length > 0) {
     const fallbackResult = await pool.query(baseQuery(5), [
@@ -1195,9 +1467,12 @@ export const findNearestAgencies = async (
       sos_id,
     ]);
 
-    const existingAgencyIds = new Set(result.rows.map((r) => r.agency_id));
+    const existingAgencyIds = new Set(
+      result.rows.map((r) => r.agency_id)
+    );
+
     const newAgencies = fallbackResult.rows.filter(
-      (r) => !existingAgencyIds.has(r.agency_id),
+      (r) => !existingAgencyIds.has(r.agency_id)
     );
 
     return [...result.rows, ...newAgencies];
@@ -1236,36 +1511,140 @@ const getSosAlerts = catchAsync(async (req, res) => {
   const result = await pool.query(
     `
     SELECT 
-    i.inbox_id,
-    i.sos_id,
-    i.distance_meters,
-    i.inserted_at,
-    s.disaster_type,
-    s.description,
-    ST_AsGeoJSON(s.triggered_location)::json AS location,
-    ARRAY(
-        SELECT tag 
+      i.inbox_id,
+      i.sos_id,
+      i.distance_meters,
+      i.inserted_at,
+
+      s.disaster_type,
+      s.description,
+      s.status AS sos_status,
+
+      ST_AsGeoJSON(s.triggered_location)::json AS location,
+
+      ARRAY(
+        SELECT DISTINCT tag
         FROM UNNEST(i.matched_capabilities) AS tag
-        WHERE tag NOT IN (
-            SELECT unit_type 
-            FROM sos_dispatches 
-            WHERE sos_id = i.sos_id
-        )
-    ) AS matched_capabilities
-FROM agency_sos_inbox i
-JOIN sos_requests s ON i.sos_id = s.sos_id
-WHERE i.agency_id = $1
-  AND s.status NOT IN ('resolved', 'cancelled')
-  AND EXISTS (
-      SELECT 1 
-      FROM UNNEST(i.matched_capabilities) AS tag
-      WHERE tag NOT IN (
-          SELECT unit_type 
-          FROM sos_dispatches 
-          WHERE sos_id = i.sos_id
+
+        WHERE
+
+          NOT EXISTS (
+            SELECT 1
+            FROM sos_dispatches sd
+            JOIN unit_dispatches ud
+              ON ud.dispatch_id = sd.dispatch_id
+            WHERE sd.sos_id = i.sos_id
+              AND ud.unit_type = tag
+          )
+
+          AND
+
+          EXISTS (
+            SELECT 1
+            FROM agency_units au
+
+            WHERE au.agency_id = i.agency_id
+              AND au.unit_type = tag
+
+              AND au.status IN (
+                'AVAILABLE',
+                'EN_ROUTE',
+                'ON_SCENE'
+              )
+
+              AND
+
+              (
+                SELECT COUNT(*)
+                FROM sos_dispatches sd2
+                JOIN unit_dispatches ud2
+                  ON ud2.dispatch_id = sd2.dispatch_id
+
+                WHERE ud2.unit_id = au.unit_id
+
+                  AND ud2.status IN (
+                    'EN ROUTE',
+                    'ON SCENE'
+                  )
+
+                  AND EXISTS (
+                    SELECT 1
+                    FROM sos_requests sr
+                    WHERE sr.sos_id = sd2.sos_id
+                      AND sr.status NOT IN (
+                        'resolved',
+                        'cancelled'
+                      )
+                  )
+              ) < au.sos_capacity
+          )
+      ) AS matched_capabilities
+
+    FROM agency_sos_inbox i
+
+    JOIN sos_requests s
+      ON s.sos_id = i.sos_id
+
+    WHERE i.agency_id = $1
+
+      AND s.status NOT IN (
+        'resolved',
+        'cancelled'
       )
-  )
-ORDER BY i.inserted_at DESC;
+
+      AND EXISTS (
+        SELECT 1
+        FROM UNNEST(i.matched_capabilities) AS tag
+
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM sos_dispatches sd
+          JOIN unit_dispatches ud
+            ON ud.dispatch_id = sd.dispatch_id
+          WHERE sd.sos_id = i.sos_id
+            AND ud.unit_type = tag
+        )
+
+        AND EXISTS (
+          SELECT 1
+          FROM agency_units au
+
+          WHERE au.agency_id = i.agency_id
+            AND au.unit_type = tag
+
+            AND au.status IN (
+              'AVAILABLE',
+              'EN_ROUTE',
+              'ON_SCENE'
+            )
+
+            AND (
+              SELECT COUNT(*)
+              FROM sos_dispatches sd2
+              JOIN unit_dispatches ud2
+                ON ud2.dispatch_id = sd2.dispatch_id
+
+              WHERE ud2.unit_id = au.unit_id
+
+                AND ud2.status IN (
+                  'EN ROUTE',
+                  'ON SCENE'
+                )
+
+                AND EXISTS (
+                  SELECT 1
+                  FROM sos_requests sr
+                  WHERE sr.sos_id = sd2.sos_id
+                    AND sr.status NOT IN (
+                      'resolved',
+                      'cancelled'
+                    )
+                )
+            ) < au.sos_capacity
+        )
+      )
+
+    ORDER BY i.inserted_at DESC;
     `,
     [agency_id],
   );
@@ -1275,32 +1654,52 @@ ORDER BY i.inserted_at DESC;
 
 const getUnitActiveMission = catchAsync(async (req, res) => {
   const { unit_id } = req.params;
+
   const result = await pool.query(
     `
     SELECT 
       s.sos_id,
       s.user_id,
-      s.triggered_at, 
-      s.status AS sos_status, 
+      s.triggered_at,
+      s.status AS sos_status,
+
       ST_AsGeoJSON(s.triggered_location)::json AS sos_location,
-      s_d.dispatch_id,
-      s_d.agency_id,
-      s_d.assigned_at, 
-      s_d.updated_at, 
-      s_d.status AS dispatch_status, 
-      u.unit_id,
-      u.unit_name, 
-      u.unit_type, 
-      u.equipped_assets, 
+
+      ud.dispatch_id,
+      ud.agency_id,
+      ud.unit_id,
+      ud.unit_type,
+      ud.status AS dispatch_status,
+      ud.assigned_at,
+      ud.updated_at,
+
+      u.unit_name,
+      u.equipped_assets,
+
       ST_AsGeoJSON(u.current_location)::json AS unit_location
-    FROM sos_dispatches s_d 
-    JOIN sos_requests s ON s_d.sos_id = s.sos_id 
-    JOIN agency_units u ON s_d.unit_id = u.unit_id
-    WHERE s_d.unit_id = $1
-      AND s_d.status IN ('ASSIGNED', 'EN ROUTE', 'ON SCENE')
-      AND s.status IN ('pending', 'acknowledged', 'dispatched')
-    ORDER BY s_d.assigned_at DESC
-    LIMIT 1;
+
+    FROM unit_dispatches ud
+
+    JOIN sos_dispatches sd
+      ON sd.dispatch_id = ud.dispatch_id
+
+    JOIN sos_requests s
+      ON s.sos_id = sd.sos_id
+
+    JOIN agency_units u
+      ON u.unit_id = ud.unit_id
+
+    WHERE ud.unit_id = $1
+
+      AND ud.status IN ('EN_ROUTE', 'ON_SCENE')
+
+      AND s.status IN (
+        'pending',
+        'acknowledged',
+        'dispatched'
+      )
+
+    ORDER BY ud.assigned_at DESC;
     `,
     [unit_id],
   );
@@ -1324,13 +1723,36 @@ const getSosAlert = catchAsync(async (req, res) => {
 
 const getDispatchData = catchAsync(async (req, res) => {
   const { sos_id } = req.params;
+
   const result = await pool.query(
     `
-    select d.dispatch_id, a.agency_name, a.agency_id, u.unit_name, u.unit_id,
-    u.unit_type, d.status, d.assigned_at, ST_AsGeoJSON(u.current_location)::json AS unit_location
-    from sos_dispatches d join agencies a on d.agency_id=a.agency_id join agency_units u on
-    d.unit_id=u.unit_id
-    where sos_id=$1
+    SELECT
+      ud.dispatch_id,
+      a.agency_name,
+      a.agency_id,
+
+      u.unit_name,
+      u.unit_id,
+      u.unit_type,
+
+      ud.status,
+      ud.assigned_at,
+      ud.updated_at,
+
+      ST_AsGeoJSON(u.current_location)::json AS unit_location
+
+    FROM sos_dispatches sd
+
+    JOIN unit_dispatches ud
+      ON sd.dispatch_id = ud.dispatch_id
+
+    JOIN agencies a
+      ON ud.agency_id = a.agency_id
+
+    JOIN agency_units u
+      ON ud.unit_id = u.unit_id
+
+    WHERE sd.sos_id = $1
     `,
     [sos_id],
   );
@@ -1542,13 +1964,29 @@ const getGovtSosAlerts = catchAsync(async (req, res) => {
 
 const getGovtDispatches = catchAsync(async (req, res) => {
   const { zone_id } = req.official;
+
   const result = await pool.query(
     `
-    select * from sos_dispatches
-    where zone_id=$1
+    SELECT
+      sd.sos_id,
+      ud.dispatch_id,
+      ud.agency_id,
+      ud.unit_type,
+      ud.unit_id,
+      ud.status,
+      ud.zone_id,
+      ud.zone_name,
+      ud.assigned_at,
+      ud.updated_at
+    FROM sos_dispatches sd
+    JOIN unit_dispatches ud
+      ON sd.dispatch_id = ud.dispatch_id
+    WHERE ud.zone_id = $1
+    ORDER BY ud.assigned_at DESC;
     `,
     [zone_id],
   );
+
   return res.status(200).json(result.rows);
 });
 

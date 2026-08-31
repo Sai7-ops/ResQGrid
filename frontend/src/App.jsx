@@ -3528,7 +3528,7 @@ const AgencyUnits = () => {
                 </div>
               </div>
 
-              <div className="mb-6 flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+              <div className="mb-6 grid grid-cols-3 gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
                 <div>
                   <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     Classification
@@ -3537,12 +3537,22 @@ const AgencyUnits = () => {
                     {unit.unit_type}
                   </p>
                 </div>
+
+                <div className="text-center">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Active SOS
+                  </p>
+                  <p className="text-sm font-bold text-slate-800">
+                    {unit.active_sos_count} / {unit.sos_capacity}
+                  </p>
+                </div>
+
                 <div className="text-right">
                   <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     Op. Radius
                   </p>
                   <p className="flex items-center justify-end gap-1 text-sm font-bold text-slate-800">
-                    <Radio size={14} className="text-teal-600" />{" "}
+                    <Radio size={14} className="text-teal-600" />
                     {unit.unit_coverage_radius_km} km
                   </p>
                 </div>
