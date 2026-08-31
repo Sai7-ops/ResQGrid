@@ -987,7 +987,7 @@ const NearbyAgencies = () => {
   }, [fetchLocation]);
 
   useEffect(() => {
-    if (coordinates.latitude != null && coordinates.longitude != null) {
+    if (coordinates?.latitude != null && coordinates?.longitude != null) {
       searchParams.set("latitude", coordinates.latitude);
       searchParams.set("longitude", coordinates.longitude);
       setSearchParams(searchParams);
@@ -1131,7 +1131,7 @@ const NearbyAgencies = () => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {nearbyAgencies.map((agency) => {
-            const [lng, lat] = agency.hq_location.coordinates;
+            const [lng, lat] = agency.hq_coordinates.coordinates;
             return (
               <Marker
                 key={agency.agency_id}
@@ -1313,7 +1313,7 @@ const ViewNearbyAgencies = () => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {nearbyAgencies.map((agency) => {
-            const [lng, lat] = agency.hq_location.coordinates;
+            const [lng, lat] = agency.hq_coordinates.coordinates;
             return (
               <Marker
                 key={agency.agency_id}
