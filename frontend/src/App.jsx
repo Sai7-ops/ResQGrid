@@ -925,7 +925,7 @@ const apiGetNearbyAgencies = async (payload) => {
       params: {
         latitude,
         longitude,
-        ...(disaster_type && { disaster_type }),
+        disaster_type,
       },
       withCredentials: true,
     },
@@ -933,21 +933,16 @@ const apiGetNearbyAgencies = async (payload) => {
   return response.data;
 };
 
-const useNearbyAgencies = () => {
-  const [searchParams] = useSearchParams();
-  const latitude = searchParams.get("latitude");
-  const longitude = searchParams.get("longitude");
-  const disaster_type = searchParams.get("disaster_type");
-
+const useNearbyAgencies = ({ latitude, longitude, disaster_type }) => {
   const payload = {
     latitude,
     longitude,
     disaster_type,
   };
   const { data: nearbyAgencies = [], isPending } = useQuery({
-    queryKey: ["nearbyAgencies", latitude, longitude, disaster_type || "all"],
+    queryKey: ["nearbyAgencies", latitude, longitude, disaster_type],
     queryFn: () => apiGetNearbyAgencies(payload),
-    enabled: !!latitude || !!longitude,
+    enabled: latitude != null && longitude != null && !!disaster_type,
   });
   return { nearbyAgencies, isPending };
 };
@@ -972,8 +967,6 @@ const useAlertAgency = () => {
 
 const NearbyAgencies = () => {
   const { coordinates, loading, fetchLocation } = useGeolocation();
-  const { nearbyAgencies, isPending } = useNearbyAgencies();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [disasterType, setDisasterType] = useState("medical_emergency");
   const { user, isPending: fetchingUser } = useUserAuth();
   const { alert_status, isPending: fetching } = useGetAlertStatus();
@@ -981,25 +974,15 @@ const NearbyAgencies = () => {
   const [description, setDescription] = useState("");
   const [isVictim, setIsVictim] = useState(false);
   const { alertAgency, isPending: alerting } = useAlertAgency();
+  const { nearbyAgencies, isPending } = useNearbyAgencies({
+    latitude: coordinates?.latitude,
+    longitude: coordinates?.longitude,
+    disaster_type: disasterType,
+  });
 
   useEffect(() => {
     fetchLocation();
   }, [fetchLocation]);
-
-  useEffect(() => {
-    if (coordinates?.latitude != null && coordinates?.longitude != null) {
-      searchParams.set("latitude", coordinates.latitude);
-      searchParams.set("longitude", coordinates.longitude);
-      setSearchParams(searchParams);
-    }
-  }, [coordinates, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (disasterType) {
-      searchParams.set("disaster_type", disasterType);
-      setSearchParams(searchParams);
-    }
-  }, [disasterType, searchParams, setSearchParams]);
 
   const reset = () => {
     setDescription("");
@@ -1146,9 +1129,8 @@ const NearbyAgencies = () => {
                     <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
                       {agency.category}
                     </span>
-                    <p>{agency.distance_away}km away</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Distance: {agency.distance_km}
+                      Distance: {agency.distance_km}km away
                     </p>
 
                     <button
@@ -1192,7 +1174,7 @@ const apiViewNearbyAgencies = async (payload) => {
       params: {
         latitude,
         longitude,
-        ...(disaster_type && { disaster_type }),
+        disaster_type,
       },
       withCredentials: true,
     },
@@ -1200,50 +1182,33 @@ const apiViewNearbyAgencies = async (payload) => {
   return response.data;
 };
 
-const useViewNearbyAgencies = () => {
-  const [searchParams] = useSearchParams();
-
-  const latitude = searchParams.get("latitude");
-  const longitude = searchParams.get("longitude");
-  const disaster_type = searchParams.get("disaster_type");
+const useViewNearbyAgencies = ({ latitude, longitude, disaster_type }) => {
   const payload = {
     latitude,
     longitude,
     disaster_type,
   };
   const { data: nearbyAgencies = [], isPending } = useQuery({
-    queryKey: ["nearbyAgencies", latitude, longitude, disaster_type || "all"],
+    queryKey: ["nearbyAgencies", latitude, longitude, disaster_type],
     queryFn: () => apiViewNearbyAgencies(payload),
-    enabled: !!latitude || !!longitude,
+    enabled: !!latitude && !!longitude && !!disaster_type,
   });
   return { nearbyAgencies, isPending };
 };
 
 const ViewNearbyAgencies = () => {
   const { coordinates, loading, fetchLocation } = useGeolocation();
-  const { nearbyAgencies, isPending } = useViewNearbyAgencies();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [disasterType, setDisasterType] = useState("medical_emergency");
   const { user, isPending: fetching } = useUserAuth();
+  const { nearbyAgencies, isPending } = useViewNearbyAgencies({
+    latitude: coordinates?.latitude,
+    longitude: coordinates?.longitude,
+    disaster_type: disasterType,
+  });
 
   useEffect(() => {
     fetchLocation();
   }, [fetchLocation]);
-
-  useEffect(() => {
-    if (coordinates.latitude != null && coordinates.longitude != null) {
-      searchParams.set("latitude", coordinates.latitude);
-      searchParams.set("longitude", coordinates.longitude);
-      setSearchParams(searchParams);
-    }
-  }, [coordinates, searchParams, setSearchParams]);
-
-  useEffect(() => {
-    if (disasterType) {
-      searchParams.set("disaster_type", disasterType);
-      setSearchParams(searchParams);
-    }
-  }, [disasterType, searchParams, setSearchParams]);
 
   if (loading) return <h1>Wait while we fetch your location</h1>;
   if (fetching || isPending) return <h1>Loading...</h1>;
@@ -1329,9 +1294,8 @@ const ViewNearbyAgencies = () => {
                     <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
                       {agency.category}
                     </span>
-                    <p>{agency.distance_away}km away</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Distance: {agency.distance_km}
+                      Distance: {agency.distance_km}km away
                     </p>
                   </div>
                 </Popup>
