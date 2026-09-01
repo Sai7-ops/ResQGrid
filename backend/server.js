@@ -2425,7 +2425,7 @@ app.get(
   verifyAgencyJWT,
   getUnitActiveMission,
 );
-app.get("/api/agency/assistRequest", verifyAgencyJWT, getAssistRequests);
+app.get("/api/agency/assistRequests", verifyAgencyJWT, getAssistRequests);
 app.post(
   "/api/agency/unit/requestAssistance",
   verifyAgencyJWT,

@@ -113,6 +113,8 @@ export const AgencySocketProvider = ({ children }) => {
         agencySocket,
         sosAlerts,
         setSosAlerts,
+        assistRequests,
+        setAssistRequests
       }}
     >
       {children}
