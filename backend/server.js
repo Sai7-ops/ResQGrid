@@ -2381,6 +2381,42 @@ await Promise.all(
   return res.status(200).json({ message: "Requested Successfully" });
 });
 
+const getAssistRequests = catchAsync(async (req, res) => {
+  const agency_id = req.agency.agency_id;
+
+  const result = await pool.query(
+    `
+    select
+      aai.assist_id,
+      aai.agency_id,
+      aai.unit_id,
+      aai.sos_id,
+      aai.description,
+      aai.unit_name,
+      aai.agency_name,
+      aai.unit_type,
+      aai.dispatch_status,
+      aai.sos_status,
+      aai.status,
+      aai.requested_at,
+      aai.updated_at,
+      s.disaster_type,
+      s.triggered_at,
+      st_asgeojson(s.triggered_location)::json as sos_location
+    from agency_assist_inbox aai
+    join sos_requests s
+      on s.sos_id = aai.sos_id
+    where aai.agency_id = $1
+      and aai.status = 'PENDING'
+      and s.status not in ('resolved', 'cancelled')
+    order by aai.requested_at desc
+    `,
+    [agency_id],
+  );
+
+  return res.status(200).json(result.rows);
+});
+
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyAgencyJWT, getMyAgency);
 app.get("/api/agency/sosAlerts", verifyAgencyJWT, getSosAlerts);
@@ -2389,6 +2425,7 @@ app.get(
   verifyAgencyJWT,
   getUnitActiveMission,
 );
+app.get("/api/agency/assistRequest", verifyAgencyJWT, getAssistRequests);
 app.post(
   "/api/agency/unit/requestAssistance",
   verifyAgencyJWT,
