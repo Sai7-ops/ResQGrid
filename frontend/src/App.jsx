@@ -1605,7 +1605,7 @@ const useGetAssistRequests = () => {
 };
 
 const AgencyAssistInbox = () => {
-  const { agencySocket, assistanceRequests, setAssistanceRequests } =
+  const { agencySocket, assistRequests, setAssistRequests } =
     useAgencySocket();
 
   const { assist_requests, isPending } = useGetAssistRequests();
@@ -1616,9 +1616,9 @@ const AgencyAssistInbox = () => {
 
   useEffect(() => {
     if (assist_requests) {
-      setAssistanceRequests(assist_requests);
+      setAssistRequests(assist_requests);
     }
-  }, [assist_requests, setAssistanceRequests]);
+  }, [assist_requests, setAssistRequests]);
 
   const handleAssistRequest = ({
     assist_id,
@@ -1648,7 +1648,7 @@ const AgencyAssistInbox = () => {
       if (response?.success) {
         toast.success(`Unit ${assisting_unit_id} is assisting SOS #${sos_id}.`);
 
-        setAssistanceRequests((prev) =>
+        setAssistRequests((prev) =>
           prev.filter((request) => request.assist_id !== assist_id),
         );
 
@@ -1701,11 +1701,11 @@ const AgencyAssistInbox = () => {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
           </span>
-          {assistanceRequests.length} Active
+          {assistRequests.length} Active
         </span>
       </div>
 
-      {assistanceRequests.length === 0 ? (
+      {assistRequests.length === 0 ? (
         <div className="rounded-4xl border-2 border-dashed border-slate-200 bg-white/50 p-16 text-center backdrop-blur-sm">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner">
             <HandHelping size={32} />
@@ -1719,7 +1719,7 @@ const AgencyAssistInbox = () => {
         </div>
       ) : (
         <div className="space-y-5">
-          {assistanceRequests.map((request) => {
+          {assistRequests.map((request) => {
             const matchingUnits = activeUnits.filter(
               (unit) => unit.unit_type === request.unit_type,
             );
