@@ -64,14 +64,20 @@ export const AgencySocketProvider = ({ children }) => {
       }
     });
 
-    socketInstance.on("NEW_ASSISTANCE_REQUEST", (payload) => {
-      const { sos_id } = payload;
-      const does_exist = assistRequests.some(
-        (request) => request.sos_id === sos_id,
-      );
-      if (!does_exist)
-        setAssistRequests((prevAlerts) => [...prevAlerts, payload]);
-    });
+socketInstance.on("NEW_ASSISTANCE_REQUEST", (payload) => {
+  setAssistRequests((prevRequests) => {
+    const does_exist = prevRequests.some(
+      (request) =>
+        request.assist_id === payload.assist_id,
+    );
+
+    if (does_exist) {
+      return prevRequests;
+    }
+
+    return [payload, ...prevRequests];
+  });
+});
 
     socketInstance.on("CAPABILITY_CLAIMED", ({ sos_id, claimed_unit_type }) => {
       setSosAlerts((prevAlerts) => {
