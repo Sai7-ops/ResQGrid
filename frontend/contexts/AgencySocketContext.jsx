@@ -7,6 +7,7 @@ const AgencySocketContext = createContext();
 export const AgencySocketProvider = ({ children }) => {
   const [agencySocket, setAgencySocket] = useState(null);
   const [sosAlerts, setSosAlerts] = useState([]);
+  const [assistRequests, setAssistRequests] = useState([]);
 
   useEffect(() => {
     const socketInstance = io("https://resqgrid-x51v.onrender.com", {
@@ -37,8 +38,8 @@ export const AgencySocketProvider = ({ children }) => {
       });
 
       toast.error("New SOS Alert", {
-        icon: "🚨"
-      })
+        icon: "🚨",
+      });
 
       setSosAlerts((prevAlerts) => {
         const alreadyExists = prevAlerts.some(
@@ -63,6 +64,15 @@ export const AgencySocketProvider = ({ children }) => {
       }
     });
 
+    socketInstance.on("NEW_ASSISTANCE_REQUEST", (payload) => {
+      const { sos_id } = payload;
+      const does_exist = assistRequests.some(
+        (request) => request.sos_id === sos_id,
+      );
+      if (!does_exist)
+        setAssistRequests((prevAlerts) => [...prevAlerts, payload]);
+    });
+
     socketInstance.on("CAPABILITY_CLAIMED", ({ sos_id, claimed_unit_type }) => {
       setSosAlerts((prevAlerts) => {
         return prevAlerts
@@ -82,6 +92,12 @@ export const AgencySocketProvider = ({ children }) => {
           })
           .filter((alert) => alert.matched_capabilities.length > 0);
       });
+    });
+
+    socketInstance.on("ASSISTANCE_CLAIMED", ({ assist_id }) => {
+      setAssistRequests((prevRequests) =>
+        prevRequests.filter((request) => request.assist_id !== assist_id),
+      );
     });
 
     setAgencySocket(socketInstance);

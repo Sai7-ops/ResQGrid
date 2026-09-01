@@ -384,6 +384,228 @@ io.on("connection", async (socket) => {
         });
       }
     });
+
+    socket.on("ASSIST_SOS_REQUEST", async (payload, callback) => {
+      const { assist_id, sos_id, unit_id, agency_id } = payload;
+
+      try {
+        const assist_result = await pool.query(
+          `
+      select *
+      from agency_assist_inbox
+      where assist_id = $1
+        and agency_id = $2
+        and sos_id = $3
+        and status = 'PENDING'
+      for update
+      `,
+          [assist_id, agency_id, sos_id],
+        );
+
+        if (assist_result.rowCount === 0) {
+          return callback?.({
+            success: false,
+            message: "assistance request is no longer available.",
+          });
+        }
+
+        const sos_result = await pool.query(
+          `
+      select *
+      from sos_requests
+      where sos_id = $1
+        and status not in ('resolved', 'cancelled')
+      for update
+      `,
+          [sos_id],
+        );
+
+        if (sos_result.rowCount === 0) {
+          return callback?.({
+            success: false,
+            message: "sos not found or already resolved/cancelled.",
+          });
+        }
+
+        const { zone_id, zone_name, user_id } = sos_result.rows[0];
+
+        const unit_result = await pool.query(
+          `
+      select
+        au.*,
+        (
+          select count(*)
+          from sos_dispatches sd
+          join unit_dispatches ud
+            on ud.dispatch_id = sd.dispatch_id
+          where ud.unit_id = au.unit_id
+            and ud.status in ('EN ROUTE', 'ON SCENE')
+        ) as active_sos_count
+      from agency_units au
+      where au.unit_id = $1
+        and au.agency_id = $2
+      for update
+      `,
+          [unit_id, agency_id],
+        );
+
+        if (unit_result.rowCount === 0) {
+          return callback?.({
+            success: false,
+            message: "unit not found under this agency.",
+          });
+        }
+
+        const unit = unit_result.rows[0];
+
+        if (!["AVAILABLE", "EN_ROUTE", "ON_SCENE"].includes(unit.status)) {
+          return callback?.({
+            success: false,
+            message: `unit ${unit_id} is not available for assistance.`,
+          });
+        }
+
+        if (Number(unit.active_sos_count) >= Number(unit.sos_capacity)) {
+          return callback?.({
+            success: false,
+            message: `unit ${unit_id} has reached its sos capacity.`,
+          });
+        }
+
+        const existing_dispatch = await pool.query(
+          `
+      select *
+      from unit_dispatches
+      where unit_id = $1
+        and status in ('EN ROUTE', 'ON SCENE')
+      order by dispatch_id desc
+      limit 1
+      `,
+          [unit_id],
+        );
+
+        let dispatchData;
+
+        if (existing_dispatch.rowCount > 0) {
+          dispatchData = existing_dispatch.rows[0];
+        } else {
+          const dispatch = await pool.query(
+            `
+        insert into unit_dispatches
+          (agency_id, unit_type, unit_id, status, zone_id, zone_name)
+        values
+          ($1, $2, $3, 'EN ROUTE', $4, $5)
+        returning *
+        `,
+            [agency_id, unit.unit_type, unit_id, zone_id, zone_name],
+          );
+
+          dispatchData = dispatch.rows[0];
+
+          await pool.query(
+            `
+        update agency_units
+        set status = 'EN_ROUTE'
+        where unit_id = $1
+          and status = 'AVAILABLE'
+        `,
+            [unit_id],
+          );
+        }
+
+        await pool.query(
+          `
+      insert into sos_dispatches
+        (dispatch_id, sos_id)
+      values
+        ($1, $2)
+      `,
+          [dispatchData.dispatch_id, sos_id],
+        );
+
+        await pool.query(
+          `
+      update agency_assist_inbox
+      set
+        status = 'ACCEPTED',
+        updated_at = current_timestamp
+      where assist_id = $1
+      `,
+          [assist_id],
+        );
+
+        const agency_result = await pool.query(
+          `
+      select agency_name
+      from agencies
+      where agency_id = $1
+      `,
+          [agency_id],
+        );
+
+        const agency_name = agency_result.rows[0]?.agency_name;
+
+        const unit_location_result = await pool.query(
+          `
+      select
+        unit_name,
+        unit_id,
+        unit_type,
+        ST_AsGeoJSON(current_location)::json as location
+      from agency_units
+      where unit_id = $1
+      `,
+          [unit_id],
+        );
+
+        const unitData = unit_location_result.rows[0];
+
+        const dispatchPayload = {
+          assist_id,
+          sos_id,
+          dispatch_id: dispatchData.dispatch_id,
+          agency_id,
+          agency_name,
+          unit_id,
+          unit_name: unitData.unit_name,
+          unit_type: unitData.unit_type,
+          unit_location: unitData.location,
+          status: dispatchData.status,
+          assigned_at: dispatchData.assigned_at,
+        };
+
+        callback?.({
+          success: true,
+          dispatch: dispatchData,
+        });
+
+        io.to(`agency_${zone_id}`).emit("ASSISTANCE_CLAIMED", dispatchPayload);
+
+        io.to(`official_SUPER_ADMIN_${zone_id}`).emit(
+          "NEW_SOS_DISPATCH",
+          dispatchPayload,
+        );
+
+        io.to(`official_ADMIN_${zone_id}`).emit(
+          "NEW_SOS_DISPATCH",
+          dispatchPayload,
+        );
+
+        io.to(`official_AGENCY_ADMIN_${zone_id}`).emit(
+          "NEW_SOS_DISPATCH",
+          dispatchPayload,
+        );
+
+        io.to(`user_${user_id}`).emit("CITIZEN_UNIT_EN_ROUTE", dispatchPayload);
+      } catch (error) {
+        console.error("ASSIST_SOS_REQUEST ERROR:", error);
+
+        callback?.({
+          success: false,
+          message: "failed to accept assistance request.",
+        });
+      }
+    });
   }
 
   if (socket.type === "user") {
@@ -2008,6 +2230,157 @@ const approveRequest = catchAsync(async (req, res) => {
   return res.status(200).json({ message: "Successful" });
 });
 
+const requestAssistance = catchAsync(async (req, res) => {
+  const { unit_id, sos_id, unit_type, description } = req.body;
+  const io = req.app.get("io");
+  const get_details = await pool.query(
+    `
+    select a.agency_name, a_u.unit_name, a_u.unit_type, a.agency_id,
+    u_d.status as dispatch_status, s.status as sos_status 
+    from unit_dispatches u_d
+    join agencies a on a.agency_id=u_d.agency_id
+    join agency_units a_u on a_u.unit_id=u_d.unit_id
+    join sos_dispatches s_d on s_d.dispatch_id=u_d.dispatch_id
+    join sos_requests s on s.sos_id=s_d.sos_id
+    where u_d.unit_id=$1 and s.sos_id=$2
+    `,
+    [unit_id, sos_id],
+  );
+  const details = get_details.rows[0];
+  const payload = {
+    unit_id,
+    sos_id,
+    description,
+    unit_name: details.unit_name,
+    agency_name: details.agency_name,
+    unit_type: details.unit_type,
+    dispatch_status: details.dispatch_status,
+    sos_status: details.sos_status,
+  };
+  const result = await pool.query(
+    `
+    select distinct au.agency_id
+from agency_units au
+join agencies a
+  on a.agency_id = au.agency_id
+join sos_requests s
+  on s.sos_id = $1
+where au.unit_type = $2
+  and a.is_active = true
+  and a.is_verified = true
+  and a.agency_id <> $3
+  and st_dwithin(
+    a.hq_coordinates,
+    s.triggered_location,
+    a.coverage_radius_km * 1000
+  );
+    `,
+    [sos_id, unit_type, details.agency_id],
+  );
+  if (result.rowCount === 0) {
+    const result = await pool.query(
+      `
+    select distinct au.agency_id
+from agency_units au
+join agencies a
+  on a.agency_id = au.agency_id
+join sos_requests s
+  on s.sos_id = $1
+where au.unit_type = $2
+  and a.is_active = true
+  and a.is_verified = true
+  and a.agency_id <> $3
+  and st_dwithin(
+    a.hq_coordinates,
+    s.triggered_location,
+    (a.coverage_radius_km + 5) * 1000
+  );
+    `,
+      [sos_id, unit_type, details.agency_id],
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message:
+          "No agencies found nearby! But governement operators are notified regarding the same",
+      });
+    }
+    const agencies = result.rows;
+await Promise.all(
+  agencies.map(({ agency_id }) =>
+    pool.query(
+      `
+      insert into agency_assist_inbox (
+        agency_id,
+        unit_id,
+        sos_id,
+        description,
+        unit_name,
+        agency_name,
+        unit_type,
+        dispatch_status,
+        sos_status
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      on conflict (agency_id, unit_id, sos_id) do nothing
+      `,
+      [
+        agency_id,
+        unit_id,
+        sos_id,
+        description,
+        details.unit_name,
+        details.agency_name,
+        details.unit_type,
+        details.dispatch_status,
+        details.sos_status,
+      ],
+    ),
+  ),
+);
+    agencies.forEach(({ agency_id }) => {
+      io.to(`agency_${agency_id}`).emit("NEW_ASSISTANCE_REQUEST", payload);
+    });
+    return res.status(200).json({ message: "Requested Successfully" });
+  }
+  const agencies = result.rows;
+  await Promise.all(
+  agencies.map(({ agency_id }) =>
+    pool.query(
+      `
+      insert into agency_assist_inbox (
+        agency_id,
+        unit_id,
+        sos_id,
+        description,
+        unit_name,
+        agency_name,
+        unit_type,
+        dispatch_status,
+        sos_status
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      on conflict (agency_id, unit_id, sos_id) do nothing
+      `,
+      [
+        agency_id,
+        unit_id,
+        sos_id,
+        description,
+        details.unit_name,
+        details.agency_name,
+        details.unit_type,
+        details.dispatch_status,
+        details.sos_status,
+      ],
+    ),
+  ),
+);
+  agencies.forEach(({ agency_id }) => {
+    io.to(`agency_${agency_id}`).emit("NEW_ASSISTANCE_REQUEST", payload);
+  });
+  return res.status(200).json({ message: "Requested Successfully" });
+});
+
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyAgencyJWT, getMyAgency);
 app.get("/api/agency/sosAlerts", verifyAgencyJWT, getSosAlerts);
@@ -2015,6 +2388,11 @@ app.get(
   "/api/agency/unit/:unit_id/activeMission",
   verifyAgencyJWT,
   getUnitActiveMission,
+);
+app.post(
+  "/api/agency/unit/requestAssistance",
+  verifyAgencyJWT,
+  requestAssistance,
 );
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);

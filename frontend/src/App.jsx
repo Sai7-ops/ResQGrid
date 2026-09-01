@@ -84,6 +84,7 @@ import {
   Bell,
   Ambulance,
   AlertCircleIcon,
+  HandHelping,
 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -283,10 +284,15 @@ function App() {
               <Route path="dashboard" element={<AgencyDashboard />} />
               <Route path="inbox" element={<AgencyInbox />} />
               <Route path="sosInbox" element={<AgencySosInbox />} />
+              <Route path="assistInbox" element={<AgencyAssistInbox />} />
               <Route path="units" element={<AgencyUnits />} />
               <Route
                 path="unit/:unit_id/activeMission"
                 element={<AgencyUnitActiveMission />}
+              />
+              <Route
+                path="unit/:unit_id/activeMission/:sos_id/requestAssistance"
+                element={<RequestAssistance />}
               />
             </Route>
           </Route>
@@ -1431,7 +1437,9 @@ const AgencySosInbox = () => {
   }
 
   const availableUnits = agencyUnits.filter(
-    (unit) => unit.status === "AVAILABLE",
+    (unit) =>
+      ["AVAILABLE", "EN_ROUTE", "ON_SCENE"].includes(unit.status) &&
+      unit.active_sos_count < unit.sos_capacity,
   );
 
   return (
@@ -1572,6 +1580,308 @@ const AgencySosInbox = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const apiGetAssistRequests = async () => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/agency/assistRequests`,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useGetAssistRequests = () => {
+  const { data: assist_requests = [], isPending } = useQuery({
+    queryKey: ["assistRequests"],
+    queryFn: apiGetAssistRequests,
+  });
+  return { assist_requests, isPending };
+};
+
+const AgencyAssistInbox = () => {
+  const { agencySocket, assistanceRequests, setAssistanceRequests } =
+    useAgencySocket();
+
+  const { assist_requests, isPending } = useGetAssistRequests();
+  const { agencyUnits, isPending: fetching } = useGetAgencyUnits();
+
+  const [assistingUnitId, setAssistingUnitId] = useState(null);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (assist_requests) {
+      setAssistanceRequests(assist_requests);
+    }
+  }, [assist_requests, setAssistanceRequests]);
+
+  const handleAssistRequest = ({
+    assist_id,
+    sos_id,
+    unit_id,
+    agency_id,
+    assisting_unit_id,
+  }) => {
+    if (!agencySocket) {
+      toast.error("Socket is not connected!");
+      return;
+    }
+
+    setAssistingUnitId(assisting_unit_id);
+
+    const payload = {
+      assist_id,
+      sos_id,
+      unit_id,
+      agency_id,
+      assisting_unit_id,
+    };
+
+    agencySocket.emit("ASSIST_SOS_REQUEST", payload, (response) => {
+      setAssistingUnitId(null);
+
+      if (response?.success) {
+        toast.success(`Unit ${assisting_unit_id} is assisting SOS #${sos_id}.`);
+
+        setAssistanceRequests((prev) =>
+          prev.filter((request) => request.assist_id !== assist_id),
+        );
+
+        queryClient.invalidateQueries({
+          queryKey: ["agencyUnits"],
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: ["assistRequests"],
+        });
+      } else {
+        toast.error(
+          `Failed to assist: ${response?.message || "Unknown error"}`,
+        );
+      }
+    });
+  };
+
+  if (isPending || fetching) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0D9488]"></span>
+      </div>
+    );
+  }
+
+  const activeUnits = agencyUnits.filter(
+    (unit) =>
+      unit.status === "AVAILABLE" ||
+      unit.status === "EN_ROUTE" ||
+      unit.status === "ON_SCENE",
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col justify-between gap-4 rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:flex-row sm:items-center">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[#0F172A]">
+            <HandHelping className="text-[#0D9488]" />
+            Assistance Requests
+          </h1>
+
+          <p className="mt-1 text-[0.9rem] text-[#64748B]">
+            Live assistance requests from units handling active emergencies.
+          </p>
+        </div>
+
+        <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 sm:self-auto">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          </span>
+          {assistanceRequests.length} Active
+        </span>
+      </div>
+
+      {assistanceRequests.length === 0 ? (
+        <div className="rounded-4xl border-2 border-dashed border-slate-200 bg-white/50 p-16 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 shadow-inner">
+            <HandHelping size={32} />
+          </div>
+
+          <h3 className="text-xl font-extrabold text-slate-700">All Clear</h3>
+
+          <p className="mt-2 text-sm font-medium text-slate-500">
+            No active assistance requests at the moment.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {assistanceRequests.map((request) => {
+            const matchingUnits = activeUnits.filter(
+              (unit) => unit.unit_type === request.unit_type,
+            );
+
+            return (
+              <div
+                key={request.assist_id}
+                className="overflow-hidden rounded-4xl border border-slate-200 bg-white/80 shadow-sm backdrop-blur-xl"
+              >
+                <div className="flex flex-col justify-between gap-4 border-b border-slate-100 bg-orange-50/40 p-6 sm:flex-row sm:items-start">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                      <HandHelping size={24} />
+                    </div>
+
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-extrabold tracking-tight text-slate-900">
+                          SOS #{request.sos_id}
+                        </h3>
+
+                        <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                          {request.unit_type}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        Assistance requested by{" "}
+                        <span className="font-bold text-slate-700">
+                          {request.agency_name}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="shrink-0 rounded-full border border-orange-200 bg-orange-100 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-orange-700">
+                    {request.status}
+                  </span>
+                </div>
+
+                <div className="space-y-5 p-6">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Requesting Unit
+                      </p>
+
+                      <p className="text-sm font-bold text-slate-900">
+                        {request.unit_name}
+                      </p>
+
+                      <p className="mt-1 font-mono text-[11px] font-semibold text-slate-500">
+                        Unit #{request.unit_id}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Unit Type
+                      </p>
+
+                      <p className="text-sm font-bold text-slate-900">
+                        {request.unit_type}
+                      </p>
+
+                      <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                        Dispatch: {request.dispatch_status}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      Assistance Required
+                    </p>
+
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                      <p className="text-sm font-medium leading-relaxed text-slate-600">
+                        {request.description ||
+                          "No additional description provided."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-[11px] font-bold uppercase tracking-wider">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
+                      SOS: {request.sos_status}
+                    </span>
+
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">
+                      Dispatch: {request.dispatch_status}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      Units Available For Assistance
+                    </p>
+
+                    {matchingUnits.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
+                        <p className="text-sm font-semibold text-slate-500">
+                          No {request.unit_type} units currently have capacity
+                          to assist.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {matchingUnits.map((unit) => (
+                          <div
+                            key={unit.unit_id}
+                            className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-3 shadow-sm"
+                          >
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">
+                                {unit.unit_name}
+                              </p>
+
+                              <p className="font-mono text-[11px] font-semibold text-slate-500">
+                                {unit.unit_id}
+                              </p>
+
+                              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {unit.status} · {unit.active_sos_count ?? 0}/
+                                {unit.sos_capacity} SOS
+                              </p>
+                            </div>
+
+                            <button
+                              disabled={
+                                assistingUnitId === unit.unit_id ||
+                                (unit.active_sos_count ?? 0) >=
+                                  unit.sos_capacity
+                              }
+                              onClick={() =>
+                                handleAssistRequest({
+                                  assist_id: request.assist_id,
+                                  sos_id: request.sos_id,
+                                  unit_id: request.unit_id,
+                                  agency_id: request.agency_id,
+                                  assisting_unit_id: unit.unit_id,
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D9488] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0B7C72] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {assistingUnitId === unit.unit_id && (
+                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                              )}
+
+                              {assistingUnitId === unit.unit_id
+                                ? "Assisting..."
+                                : "Assist"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -3081,6 +3391,7 @@ const AgencyLayout = () => {
     { to: "/agency/inbox", label: "Inbox", Icon: Inbox },
     { to: "/agency/units", label: "Units", Icon: Navigation },
     { to: "/agency/sosInbox", label: "SOS Inbox", Icon: Siren },
+    { to: "/agency/assistInbox", label: "Assist Inbox", Icon: HandHelping },
   ];
 
   const logoutHandler = () => {
@@ -3763,6 +4074,92 @@ const useGetUnitActiveMission = () => {
   return { data, isPending };
 };
 
+const apiRequestAssistance = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/agency/unit/requestAssistance`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useRequestAssistance = () => {
+  const { mutate: requestAssistance, isPending } = useMutation({
+    mutationFn: apiRequestAssistance,
+  });
+  return { requestAssistance, isPending };
+};
+
+const RequestAssistance = () => {
+  const { requestAssistance, isPending } = useRequestAssistance();
+  const { sos_id, unit_id } = useParams();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm();
+  const submitHandler = (data) => {
+    const payload = {
+      sos_id,
+      unit_id,
+      unit_type: data.unit_type,
+      description: data.description,
+    };
+    requestAssistance(payload, {
+      onSuccess: () => {
+        toast.success("Assistance requested successfully");
+        reset();
+      },
+      onError: () => toast.error("Failed to request!"),
+    });
+  };
+  return (
+    <div>
+      <form onSubmit={handleSubmit(submitHandler)}>
+        <div>
+          <label className="floating-label">
+            <span>Unit Type</span>
+            <select
+              {...register("unit_type", {
+                required: "This field is required",
+              })}
+            >
+              <option value=""></option>
+              <option value="MEDICAL">MEDICAL</option>
+              <option value="FIRE RESCUE">FIRE RESCUE</option>
+              <option value="WATER RESCUE">WATER RESCUE</option>
+              <option value="POLICE">POLICE</option>
+              <option value="EVACUATION">EVACUATION</option>
+              <option value="SEARCH RESCUE">SEARCH RESCUE</option>
+            </select>
+          </label>
+          {errors?.unit_type ? <p>{errors.unit_type.message}</p> : ""}
+        </div>
+        <div>
+          <label className="floating-label">
+            <span>Description</span>
+            <textarea
+              placeholder="Mention necessary equipments or describe the situation..."
+              {...register("description", {
+                required: "This field is required!",
+              })}
+            />
+          </label>
+          {errors?.description ? <p>{errors.description.message}</p> : ""}
+        </div>
+        <div>
+          <button disabled={isPending} className="btn btn-primary">
+            REQUEST
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 const AgencyUnitActiveMission = () => {
   const { data, isPending } = useGetUnitActiveMission();
   const navigate = useNavigate();
@@ -3797,24 +4194,18 @@ const AgencyUnitActiveMission = () => {
     );
   }
 
-  const activeMission = data[0];
+  const activeMission = data;
 
   const {
-    triggered_at,
-    sos_id,
-    sos_status,
-    sos_location,
     assigned_at,
-    updated_at,
     dispatch_status,
     unit_name,
     unit_type,
     unit_id,
     unit_location,
-  } = activeMission;
+  } = activeMission[0];
 
   const [unit_longitude, unit_latitude] = unit_location.coordinates;
-  const [sos_longitude, sos_latitude] = sos_location.coordinates;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto w-full">
@@ -3879,36 +4270,52 @@ const AgencyUnitActiveMission = () => {
             <AlertTriangle size={18} className="text-red-600" /> Target SOS
             Details
           </h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase">
-                Incident ID
-              </p>
-              <p className="font-mono font-semibold text-slate-800">{sos_id}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase">
-                Incident Status
-              </p>
-              <span className="inline-block rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">
-                {sos_status}
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase">
-                Triggered Time
-              </p>
-              <p className="text-xs font-medium text-slate-700">
-                {triggered_at}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 font-bold uppercase">
-                Last Synchronization
-              </p>
-              <p className="text-xs font-medium text-slate-700">{updated_at}</p>
-            </div>
-          </div>
+          {activeMission.map((alert) => {
+            return (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase">
+                    Incident ID
+                  </p>
+                  <p className="font-mono font-semibold text-slate-800">
+                    {alert.sos_id}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase">
+                    Incident Status
+                  </p>
+                  <span className="inline-block rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-700">
+                    {alert.sos_status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase">
+                    Triggered Time
+                  </p>
+                  <p className="text-xs font-medium text-slate-700">
+                    {alert.triggered_at}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase">
+                    Last Synchronization
+                  </p>
+                  <p className="text-xs font-medium text-slate-700">
+                    {alert.updated_at}
+                  </p>
+                </div>
+                <div>
+                  <h3>REQUEST ASSISTANCE</h3>
+                  <Link
+                    to={`/agency/units/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
+                  >
+                    REQUEST ASSISTANCE
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -3939,24 +4346,29 @@ const AgencyUnitActiveMission = () => {
                 </div>
               </Popup>
             </Marker>
-            <Marker
-              position={[sos_latitude, sos_longitude]}
-              icon={sosAlertMarkerIcon}
-            >
-              <Popup>
-                <div className="p-1 text-center">
-                  <strong className="block text-sm font-bold text-red-600">
-                    Incident #{sos_id}
-                  </strong>
-                  <span className="text-xs text-slate-500">
-                    Status: {sos_status}
-                  </span>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Triggered: {triggered_at}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
+            {activeMission.map((alert) => {
+              const [sos_longitude, sos_latitude] = alert.coordinates;
+              return (
+                <Marker
+                  position={[sos_latitude, sos_longitude]}
+                  icon={sosAlertMarkerIcon}
+                >
+                  <Popup>
+                    <div className="p-1 text-center">
+                      <strong className="block text-sm font-bold text-red-600">
+                        Incident #{alert.sos_id}
+                      </strong>
+                      <span className="text-xs text-slate-500">
+                        Status: {alert.sos_status}
+                      </span>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Triggered: {alert.triggered_at}
+                      </p>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
         </div>
       </div>
