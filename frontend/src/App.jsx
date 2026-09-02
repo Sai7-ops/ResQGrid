@@ -4148,7 +4148,7 @@ const AgencyUnits = () => {
                       <Crosshair
                         size={13}
                         className="transition-transform group-hover/btn:scale-110"
-                      />{" "}
+                      />
                       Pan
                     </button>
                     <button
@@ -4160,7 +4160,7 @@ const AgencyUnits = () => {
                       <Activity
                         size={13}
                         className="transition-transform group-hover/btn:scale-110"
-                      />{" "}
+                      />
                       Mission
                     </button>
                     <button
@@ -4172,7 +4172,7 @@ const AgencyUnits = () => {
                       <Clock
                         size={13}
                         className="transition-transform group-hover/btn:scale-110"
-                      />{" "}
+                      />
                       Records
                     </button>
                   </div>
@@ -4578,7 +4578,7 @@ const AgencyUnitActiveMission = () => {
                     </div>
 
                     <Link
-                      to={`/agency/units/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
+                      to={`/agency/unit/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
                       className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200 transition-all hover:bg-red-100 hover:shadow-sm"
                     >
                       <AlertTriangle size={15} strokeWidth={2.5} />
