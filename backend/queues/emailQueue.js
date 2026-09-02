@@ -1,6 +1,6 @@
 import { Queue, Worker } from "bullmq";
 import { redis } from "../config/redis.js";
-import { transporter } from "../config/mailer.js";
+import { resend } from "../config/resend.js";
 
 export const emailQueue = new Queue("emailQueue", {
   connection: redis,
@@ -23,18 +23,21 @@ export const emailWorker = new Worker(
   "emailQueue",
   async (job) => {
     const { to, subject, html } = job.data;
-    const info = await transporter.sendMail({
-      from: `"ResQGrid System" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+
+    const { data, error } = await resend.emails.send({
+      from: "ResQGrid <onboarding@resend.dev>",
       to,
       subject,
       html,
     });
-    console.log("[Email Worker] SMTP response:", {
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    console.log("[Email Worker] Email sent:", {
       to,
-      messageId: info.messageId,
-      response: info.response,
-      accepted: info.accepted,
-      rejected: info.rejected,
+      id: data?.id,
     });
   },
   {
