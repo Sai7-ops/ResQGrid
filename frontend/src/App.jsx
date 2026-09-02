@@ -266,18 +266,14 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route element={<UserPublicRoute />}>
-            <Route path="user/register" element={<UserRegister />} />
-            <Route path="user/login" element={<UserLogin />} />
-          </Route>
-          <Route element={<AgencyPublicRoute />}>
-            <Route path="agency/register" element={<AgencyRegister />} />
-            <Route path="agency/login" element={<AgencyLogin />} />
-          </Route>
-          <Route element={<GovtPublicRoute />}>
-            <Route path="govt/register" element={<GovtRegister />} />
-            <Route path="govt/login" element={<GovtLogin />} />
-          </Route>
+
+          <Route path="user/register" element={<UserRegister />} />
+          <Route path="user/login" element={<UserLogin />} />
+
+          <Route path="agency/register" element={<AgencyRegister />} />
+          <Route path="agency/login" element={<AgencyLogin />} />
+          <Route path="govt/register" element={<GovtRegister />} />
+          <Route path="govt/login" element={<GovtLogin />} />
           <Route element={<AgencyRouteProtector />}>
             <Route path="/agency" element={<AgencyLayout />}>
               <Route path="home" element={<AgencyHome />} />
