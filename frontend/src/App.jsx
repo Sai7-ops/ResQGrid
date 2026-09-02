@@ -7469,8 +7469,8 @@ const GovtPendingRequests = () => {
     .filter((request) => request.status === status)
     .sort((a, b) =>
       sortBy === "earlier"
-        ? new Date(a.timestamp) - new Date(b.timestamp)
-        : new Date(b.timestamp) - new Date(a.timestamp),
+        ? new Date(a.registered_on) - new Date(b.registered_on)
+        : new Date(b.registered_on) - new Date(a.registered_on),
     );
 
   return (
