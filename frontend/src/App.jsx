@@ -1900,10 +1900,12 @@ const apiLogoutUser = async () => {
 
 const useLogoutUser = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { mutate: logoutUser, isPending } = useMutation({
     mutationFn: apiLogoutUser,
     onSuccess: () => {
       navigate("/", { replace: true });
+      queryClient.clear();
       toast.success("Logged out successfully");
     },
     onError: () => toast.error("An error occured while logging out"),
@@ -3365,10 +3367,12 @@ const apiLogoutAgency = async () => {
 
 const useLogoutAgency = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { mutate: logoutAgency, isPending } = useMutation({
     mutationFn: apiLogoutAgency,
     onSuccess: () => {
       navigate("/", { replace: true });
+      queryClient.clear();
       toast.success("Logged out successfully");
     },
     onError: () => toast.error("An error occured while logging out"),
@@ -6251,10 +6255,12 @@ const apiLogoutOfficial = async () => {
 
 const useLogoutOfficial = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { mutate: logoutOfficial, isPending } = useMutation({
     mutationFn: apiLogoutOfficial,
     onSuccess: () => {
       navigate("/", { replace: true });
+      queryClient.clear();
       toast.success("Logged out successfully!");
     },
     onError: (err) => toast.error(err.response?.data?.message),

@@ -2439,6 +2439,7 @@ app.post("/api/agency/verifyEmailOtp", verifyEmailOtp);
 app.post("/api/agency/register", registerAgency);
 app.post("/api/agency/login", loginAgency);
 app.post("/api/agency/logout", verifyAgencyJWT, logoutAgency);
+
 app.get("/api/user/me", verifyUserJWT, getMe);
 app.get("/api/user/:user_id/activeSos", verifyUserJWT, getSosAlert);
 app.get("/api/user/dispatchData/:sos_id", verifyUserJWT, getDispatchData);
@@ -2451,6 +2452,7 @@ app.post("/api/user/login", loginUser);
 app.post("/api/user/triggerSos", verifyUserJWT, triggerSos);
 app.post("/api/user/alertAgency", verifyUserJWT, alertAgency);
 app.post("/api/user/logout", verifyUserJWT, logoutUser);
+
 app.get("/api/govt/sosAlerts", verifyGovtJWT, getGovtSosAlerts);
 app.get("/api/govt/sosDispatches", verifyGovtJWT, getGovtDispatches);
 app.get("/api/govt/govtOfficial", verifyGovtJWT, getGovtOfficial);
