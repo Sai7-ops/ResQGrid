@@ -1605,8 +1605,7 @@ const useGetAssistRequests = () => {
 };
 
 const AgencyAssistInbox = () => {
-  const { agencySocket, assistRequests, setAssistRequests } =
-    useAgencySocket();
+  const { agencySocket, assistRequests, setAssistRequests } = useAgencySocket();
 
   const { assist_requests, isPending } = useGetAssistRequests();
   const { agencyUnits, isPending: fetching } = useGetAgencyUnits();
@@ -6265,14 +6264,35 @@ const useLogoutOfficial = () => {
 
 const GovtLayout = () => {
   const { logoutOfficial, isPending } = useLogoutOfficial();
+  const { official } = useGovtAuth();
+  const role = official.role;
   const layoutRef = useRef(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const navLinks = [
-    { to: "/govt/home", label: "Home", Icon: HomeIcon },
-    { to: "/govt/sosAlerts", label: "SOS Alerts", Icon: Siren },
-    { to: "/govt/sosDispatches", label: "SOS Dispatches", Icon: Ambulance },
-    { to: "/govt/pendingRequests", label: "Pending Requests", Icon: Bell },
-  ];
+  let navLinks;
+  if (role === "SUPER_ADMIN") {
+    navLinks = [
+      { to: "/govt/home", label: "Home", Icon: HomeIcon },
+      { to: "/govt/sosAlerts", label: "SOS Alerts", Icon: Siren },
+      { to: "/govt/sosDispatches", label: "SOS Dispatches", Icon: Ambulance },
+      { to: "/govt/pendingRequests", label: "Pending Requests", Icon: Bell },
+    ];
+  } else if (role === "ADMIN") {
+    navLinks = [
+      { to: "/govt/home", label: "Home", Icon: HomeIcon },
+      { to: "/govt/sosAlerts", label: "SOS Alerts", Icon: Siren },
+      { to: "/govt/sosDispatches", label: "SOS Dispatches", Icon: Ambulance },
+    ];
+  } else if (role === "USER_ADMIN") {
+    navLinks = [
+      { to: "/govt/home", label: "Home", Icon: HomeIcon },
+      { to: "/govt/sosAlerts", label: "SOS Alerts", Icon: Siren },
+    ];
+  } else {
+    navLinks = [
+      { to: "/govt/home", label: "Home", Icon: HomeIcon },
+      { to: "/govt/sosDispatches", label: "SOS Dispatches", Icon: Ambulance },
+    ];
+  }
 
   const logoutHandler = () => {
     logoutOfficial();
@@ -6532,6 +6552,7 @@ const GovtSosInbox = () => {
   const [status, setStatus] = useState("pending");
   const [disasterType, setDisasterType] = useState("");
   const [sortBy, setSortBy] = useState("earlier");
+  const { official } = useGovtAuth();
 
   useEffect(() => {
     if (sos_alerts) {
@@ -6539,6 +6560,8 @@ const GovtSosInbox = () => {
     }
   }, [sos_alerts, setAlerts]);
 
+  if (official.role === "AGENCY_ADMIN")
+    return <Navigate to="/govt/home" replace />;
   if (isPending) return <h1>Loading...</h1>;
   if (alerts.length === 0) return <h1>No Active SOS at the moment</h1>;
 
@@ -6641,6 +6664,7 @@ const GovtDispatchesInbox = () => {
   const { dispatches, setDispatches } = useGovtSocket();
   const [status, setStatus] = useState("EN ROUTE");
   const [sortBy, setSortBy] = useState("earlier");
+  const { official } = useGovtAuth();
 
   useEffect(() => {
     if (sos_dispatches) {
@@ -6648,6 +6672,8 @@ const GovtDispatchesInbox = () => {
     }
   }, [sos_dispatches, setDispatches]);
 
+  if (official.role === "USER_ADMIN")
+    return <Navigate to="/govt/home" replace />;
   if (isPending) return <h1>Loading...</h1>;
   if (dispatches.length === 0)
     return <h1>No active dispatches at the moment</h1>;
@@ -6750,6 +6776,7 @@ const useGetPendingRequests = () => {
 };
 
 const GovtPendingRequests = () => {
+  const { official } = useGovtAuth();
   const { pendingRequests, setPendingRequests } = useGovtSocket();
   const { pending_requests, isPending } = useGetPendingRequests();
   const navigate = useNavigate();
@@ -6762,6 +6789,8 @@ const GovtPendingRequests = () => {
     }
   }, [pending_requests, setPendingRequests]);
 
+  if (official.role != "SUPER_ADMIN")
+    return <Navigate to="/govt/home" replace />;
   if (isPending) return <h1>Loading...</h1>;
   if (pendingRequests.length === 0) return <h1>No pending requests</h1>;
 
