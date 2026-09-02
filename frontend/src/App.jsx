@@ -4620,7 +4620,7 @@ const AgencyUnitActiveMission = () => {
               </Popup>
             </Marker>
             {activeMission.map((alert) => {
-              const [sos_longitude, sos_latitude] = alert.coordinates;
+              const [sos_longitude, sos_latitude] = alert.sos_location.coordinates;
               return (
                 <Marker
                   position={[sos_latitude, sos_longitude]}
