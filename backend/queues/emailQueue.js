@@ -23,11 +23,18 @@ export const emailWorker = new Worker(
   "emailQueue",
   async (job) => {
     const { to, subject, html } = job.data;
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"ResQGrid System" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to,
       subject,
       html,
+    });
+    console.log("[Email Worker] SMTP response:", {
+      to,
+      messageId: info.messageId,
+      response: info.response,
+      accepted: info.accepted,
+      rejected: info.rejected,
     });
   },
   {
