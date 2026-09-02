@@ -2158,7 +2158,7 @@ const getPendingRequest = catchAsync(async (req, res) => {
   const { pending_id } = req.params;
   const result = await pool.query(
     `
-    select p.pending_id, p.official_id, p.status, p.action_taker, o.* from
+    select p.pending_id, p.official_id, p.status, p.action_taker, p.registered_on, o.* from
     pending_requests p join mock_gov_officials o on p.official_id=o.official_id
     where pending_id=$1 
     `,
