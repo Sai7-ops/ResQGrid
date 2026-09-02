@@ -7525,6 +7525,7 @@ const GovtPendingRequests = () => {
                 <th className="p-4">Official Name</th>
                 <th className="p-4">Department</th>
                 <th className="p-4">Status</th>
+                <th className="p-4">Registered On</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -7562,6 +7563,9 @@ const GovtPendingRequests = () => {
                     >
                       {request.status.toUpperCase()}
                     </span>
+                  </td>
+                  <td className="p-4 font-medium text-slate-700">
+                      {request.registered_on}
                   </td>
                 </tr>
               ))}
