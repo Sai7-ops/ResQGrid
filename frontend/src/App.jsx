@@ -85,12 +85,14 @@ import {
   Ambulance,
   AlertCircleIcon,
   HandHelping,
+  ShieldCheck,
 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
 const ACCENT = "#0D9488";
 const USER_ACCENT = "#2563EB";
+const GOVT_ACCENT = "#4338CA";
 
 const STEPS = [
   { id: 1, label: "Agency", Icon: Building },
@@ -105,6 +107,12 @@ const USER_STEPS = [
   { id: 1, label: "Identity", Icon: User },
   { id: 2, label: "Verify", Icon: MessageSquare },
   { id: 3, label: "Details", Icon: MapPin },
+];
+
+const GOVT_STEPS = [
+  { id: 1, label: "Identity", Icon: User },
+  { id: 2, label: "Verify", Icon: Shield },
+  { id: 3, label: "Secure", Icon: Landmark },
 ];
 
 const PORTALS = [
@@ -193,6 +201,19 @@ const UserPrimaryButton = ({ children, disabled, ...props }) => (
   </button>
 );
 
+const GovtPrimaryButton = ({ children, disabled, ...props }) => (
+  <button
+    disabled={disabled}
+    className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4338CA] px-4 py-3.5 text-[0.9rem] font-bold text-white shadow-lg shadow-indigo-900/20 transition-all hover:bg-indigo-800 hover:shadow-indigo-900/40 disabled:cursor-not-allowed disabled:opacity-70"
+    {...props}
+  >
+    {disabled && (
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+    )}
+    {children}
+  </button>
+);
+
 const CapabilityCheckbox = ({ label, inputId, registerMethod, disabled }) => (
   <label
     htmlFor={inputId}
@@ -269,15 +290,15 @@ function App() {
           <Route path="user/register" element={<UserRegister />} />
           <Route path="agency/register" element={<AgencyRegister />} />
           <Route path="govt/register" element={<GovtRegister />} />
-          <Route element={<UserPublicRoute />}>
-            <Route path="user/login" element={<UserLogin />} />
+          <Route path="user/login" element={<UserLogin />} />
+          <Route path="agency/login" element={<AgencyLogin />} />
+          <Route path="govt/login" element={<GovtLogin />} />
+          {/* <Route element={<UserPublicRoute />}>
           </Route>
           <Route element={<AgencyPublicRoute />}>
-            <Route path="agency/login" element={<AgencyLogin />} />
           </Route>
           <Route element={<GovtPublicRoute />}>
-            <Route path="govt/login" element={<GovtLogin />} />
-          </Route>
+          </Route> */}
           <Route element={<AgencyRouteProtector />}>
             <Route path="/agency" element={<AgencyLayout />}>
               <Route path="home" element={<AgencyHome />} />
@@ -328,47 +349,47 @@ function App() {
   );
 }
 
-const GovtPublicRoute = () => {
-  const { official, isPending } = useGovtAuth();
+// const GovtPublicRoute = () => {
+//   const { official, isPending } = useGovtAuth();
 
-  if (isPending) {
-    return <h1>Loading...</h1>;
-  }
+//   if (isPending) {
+//     return <FullScreenLoader />;
+//   }
 
-  if (official) {
-    return <Navigate to="/govt/home" replace />;
-  }
+//   if (official) {
+//     return <Navigate to="/govt/home" replace />;
+//   }
 
-  return <Outlet />;
-};
+//   return <Outlet />;
+// };
 
-const AgencyPublicRoute = () => {
-  const { agency, isPending } = useAgencyAuth();
+// const AgencyPublicRoute = () => {
+//   const { agency, isPending } = useAgencyAuth();
 
-  if (isPending) {
-    return <h1>Loading...</h1>;
-  }
+//   if (isPending) {
+//     return <FullScreenLoader />;
+//   }
 
-  if (agency) {
-    return <Navigate to="/agency/home" replace />;
-  }
+//   if (agency) {
+//     return <Navigate to="/agency/home" replace />;
+//   }
 
-  return <Outlet />;
-};
+//   return <Outlet />;
+// };
 
-const UserPublicRoute = () => {
-  const { user, isPending } = useUserAuth();
+// const UserPublicRoute = () => {
+//   const { user, isPending } = useUserAuth();
 
-  if (isPending) {
-    return <h1>Loading...</h1>;
-  }
+//   if (isPending) {
+//     return <FullScreenLoader />;
+//   }
 
-  if (user) {
-    return <Navigate to="/user/home" replace />;
-  }
+//   if (user) {
+//     return <Navigate to="/user/home" replace />;
+//   }
 
-  return <Outlet />;
-};
+//   return <Outlet />;
+// };
 
 export const Home = () => {
   const root = useRef(null);
@@ -1026,159 +1047,268 @@ const NearbyAgencies = () => {
     });
   };
 
-  if (loading) return <h1>Wait while we fetch your location</h1>;
-  if (isPending || fetching) return <h1>Loading</h1>;
-  if (alert_status?.length > 0 || active)
-    return <h1>You already have an active SOS</h1>;
-  if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
+  if (loading || fetching) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+      </div>
+    );
+  }
+  if (alert_status?.length > 0 || active) {
+    return (
+      <div className="rounded-4xl border border-amber-200 bg-amber-50/60 p-12 text-center max-w-xl mx-auto shadow-sm backdrop-blur-xl mt-10">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+          <AlertCircle size={32} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">
+          Active Emergency Pending
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          You already have an active SOS broadcast in progress. Track the
+          response progress in your alert portal.
+        </p>
+        <Link
+          to="/user/sosInbox"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"
+        >
+          View Alert Progress
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div>
-        <label className="floating-label">
-          <span>DISASTER TYPE</span>
-          <select
-            className="select select-accent"
-            value={disasterType}
-            onChange={(e) => setDisasterType(e.target.value)}
-          >
-            <option value="medical_emergency">MEDICAL EMERGENCY</option>
-            <option value="fire">FIRE</option>
-            <option value="flood">FLOOD</option>
-            <option value="cyclone">CYCLONE</option>
-            <option value="earthquake">EARTHQUAKE</option>
-            <option value="crowd_hazard">CROWD HAZARD</option>
-          </select>
-        </label>
-      </div>
-      <h1>Nearby Agenices</h1>
-      <div>
-        <h3>Below data will be sent to agency if you trigger SOS</h3>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto w-full">
+      <div className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-xl">
         <div>
-          <label className="floating-label">
-            <span>Description (optional)</span>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <Siren className="text-red-600" /> Alert Nearby Agencies
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Configure your emergency details. This data will be sent directly to
+            the responding agency when you trigger an SOS.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3 md:items-end">
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+              Disaster Type
+            </label>
+            <select
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 cursor-pointer"
+              value={disasterType}
+              onChange={(e) => setDisasterType(e.target.value)}
+            >
+              <option value="medical_emergency">MEDICAL EMERGENCY</option>
+              <option value="fire">FIRE</option>
+              <option value="flood">FLOOD</option>
+              <option value="cyclone">CYCLONE</option>
+              <option value="earthquake">EARTHQUAKE</option>
+              <option value="crowd_hazard">CROWD HAZARD</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+              Description (Optional)
+            </label>
             <input
               type="text"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="E.g., Need ambulance at main gate..."
             />
-          </label>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 h-11.5">
+            <input
+              id="is_victim"
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]"
+              checked={isVictim}
+              onChange={(e) => setIsVictim(e.target.checked)}
+            />
+            <label
+              htmlFor="is_victim"
+              className="text-sm font-semibold text-slate-800 cursor-pointer select-none"
+            >
+              I am the victim
+            </label>
+          </div>
         </div>
-        <div>
-          <label htmlFor="is_victim">Are you victim?</label>
-          <input
-            type="checkbox"
-            checked={isVictim}
-            onChange={(e) => setIsVictim(e.target.checked)}
-          />
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Agency ID</th>
-              <th>Agency Name</th>
-              <th>Category</th>
-              <th>Distance</th>
-              <th>Hotline No</th>
-              <th>HQ Location Address</th>
-              <th>Official Email</th>
-              <th>Updated On</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nearbyAgencies.map((agency) => {
-              return (
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+          <Building size={20} className="text-[#2563EB]" /> Available Responders
+        </h2>
+
+        {isPending ? (
+          <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white/50 backdrop-blur-sm">
+            <span className="h-8 w-8 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+          </div>
+        ) : nearbyAgencies.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center backdrop-blur-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-400 shadow-inner">
+              <Search size={32} />
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-700">
+              No Agencies Found
+            </h3>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              There are no agencies matching your criteria within immediate
+              range.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <td>{agency.agency_id}</td>
-                  <td>{agency.agency_name}</td>
-                  <td>{agency.category}</td>
-                  <td>{agency.distance_km} km away</td>
-                  <td>{agency.hotline_no}</td>
-                  <td>{agency.hq_location_address}</td>
-                  <td>{agency.official_email}</td>
-                  <td>{agency.updated_on}</td>
-                  <td>
-                    {alert_status?.length > 0 || active ? (
-                      "Not Available"
-                    ) : (
+                  <th className="p-4">Agency ID</th>
+                  <th className="p-4">Agency Name</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4">Distance</th>
+                  <th className="p-4">Hotline No</th>
+                  <th className="p-4">HQ Address</th>
+                  <th className="p-4">Official Email</th>
+                  <th className="p-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {nearbyAgencies.map((agency, index) => (
+                  <tr
+                    key={`${agency.agency_id}-${index}`}
+                    className="transition-colors hover:bg-slate-50/50"
+                  >
+                    <td className="p-4 font-mono font-bold text-slate-900">
+                      {agency.agency_id}
+                    </td>
+                    <td className="p-4 font-bold text-slate-800">
+                      {agency.agency_name}
+                    </td>
+                    <td className="p-4">
+                      <span className="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                        {agency.category}
+                      </span>
+                    </td>
+                    <td className="p-4 font-semibold text-slate-700">
+                      {agency.distance_km} km away
+                    </td>
+                    <td className="p-4 font-semibold text-slate-700">
+                      {agency.hotline_no}
+                    </td>
+                    <td
+                      className="p-4 truncate max-w-50"
+                      title={agency.hq_location_address}
+                    >
+                      {agency.hq_location_address}
+                    </td>
+                    <td className="p-4 text-[#2563EB] font-medium">
+                      {agency.official_email}
+                    </td>
+                    <td className="p-4 text-center">
                       <button
                         disabled={alerting}
                         onClick={() => submitHandler(agency)}
-                        className="btn btn-xs btn-danger"
+                        className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
                       >
-                        Trigger SOS
+                        {alerting ? "Triggering..." : "Trigger SOS"}
                       </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-      <div>
-        <MapContainer
-          center={[coordinates.latitude, coordinates.longitude]}
-          zoom={13}
-          style={{ height: "450px", width: "100%", zIndex: 0 }}
-        >
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          {nearbyAgencies.map((agency) => {
-            const [lng, lat] = agency.hq_coordinates.coordinates;
-            return (
+
+      <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <MapPin size={18} className="text-[#2563EB]" /> Target Agencies Map
+          </h3>
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+          </span>
+        </div>
+
+        {coordinates?.latitude !== null && coordinates?.longitude !== null ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <MapContainer
+              center={[coordinates.latitude, coordinates.longitude]}
+              zoom={13}
+              style={{ height: "450px", width: "100%", zIndex: 0 }}
+            >
+              <TileLayer
+                attribution="&copy; OpenStreetMap contributors"
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+
+              {!isPending &&
+                nearbyAgencies.map((agency, index) => {
+                  const lng =
+                    agency.hq_coordinates.coordinates[0] + index * 0.00015;
+                  const lat =
+                    agency.hq_coordinates.coordinates[1] + index * 0.00015;
+
+                  return (
+                    <Marker
+                      key={`${agency.agency_id}-${index}`}
+                      position={[lat, lng]}
+                      icon={unitIcon}
+                    >
+                      <Popup>
+                        <div className="p-1 text-center">
+                          <strong className="block text-sm font-bold text-slate-900">
+                            {agency.agency_name}
+                          </strong>
+                          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                            {agency.category}
+                          </span>
+                          <p className="mt-1 mb-2 text-xs text-slate-500">
+                            Distance: {agency.distance_km}km away
+                          </p>
+
+                          <button
+                            disabled={alerting}
+                            onClick={() => submitHandler(agency)}
+                            className="mt-1 w-full rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Trigger SOS
+                          </button>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
               <Marker
-                key={agency.agency_id}
-                position={[lat, lng]}
-                icon={unitIcon}
+                position={[coordinates.latitude, coordinates.longitude]}
+                icon={userLocationIcon}
               >
                 <Popup>
                   <div className="p-1 text-center">
                     <strong className="block text-sm font-bold text-slate-900">
-                      {agency.agency_name}
+                      Your Location
                     </strong>
-                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
-                      {agency.category}
-                    </span>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Distance: {agency.distance_km}km away
+                    <p className="text-xs text-slate-500">
+                      USER ID: {user?.user_id}
                     </p>
-
-                    {alert_status?.length > 0 || active ? (
-                      "Not Available"
-                    ) : (
-                      <button
-                        disabled={alerting}
-                        onClick={() => submitHandler(agency)}
-                        className="btn btn-xs btn-danger"
-                      >
-                        Trigger SOS
-                      </button>
-                    )}
                   </div>
                 </Popup>
               </Marker>
-            );
-          })}
-          <Marker
-            position={[coordinates.latitude, coordinates.longitude]}
-            icon={userLocationIcon}
-          >
-            <Popup>
-              <div className="p-1 text-center">
-                <strong className="block text-sm font-bold text-slate-900">
-                  Your Location
-                </strong>
-                <p className="text-xs text-slate-500">
-                  USER ID: {user.user_id}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        </MapContainer>
+            </MapContainer>
+          </div>
+        ) : (
+          <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-50 text-sm font-medium text-slate-500">
+            Locating coordinates for map tracking...
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1228,17 +1358,34 @@ const ViewNearbyAgencies = () => {
     fetchLocation();
   }, [fetchLocation]);
 
-  if (loading) return <h1>Wait while we fetch your location</h1>;
-  if (isPending) return <h1>Loading...</h1>;
-  if (nearbyAgencies.length === 0) return <h1>No agencies found nearby...</h1>;
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div>
-        <label className="floating-label">
-          <span>DISASTER TYPE</span>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto w-full">
+      <div className="flex flex-col justify-between gap-5 rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-xl md:flex-row md:items-center">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <Eye className="text-[#2563EB]" /> View Nearby Agencies
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Browse emergency response agencies in your vicinity based on
+            disaster readiness.
+          </p>
+        </div>
+
+        <div className="w-full md:w-72 shrink-0">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+            <AlertTriangle size={14} className="text-[#2563EB]" /> Filter
+            Capability
+          </label>
           <select
-            className="select select-accent"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-[#2563EB] focus:bg-white focus:ring-2 focus:ring-[#2563EB]/20 cursor-pointer"
             value={disasterType}
             onChange={(e) => setDisasterType(e.target.value)}
           >
@@ -1249,92 +1396,164 @@ const ViewNearbyAgencies = () => {
             <option value="earthquake">EARTHQUAKE</option>
             <option value="crowd_hazard">CROWD HAZARD</option>
           </select>
-        </label>
+        </div>
       </div>
-      <h1>Nearby Agenices</h1>
-      <div>
-        <h3>Below data will be sent to agency if you trigger SOS</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Agency ID</th>
-              <th>Agency Name</th>
-              <th>Category</th>
-              <th>Distance</th>
-              <th>Hotline No</th>
-              <th>HQ Location Address</th>
-              <th>Official Email</th>
-              <th>Updated On</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nearbyAgencies.map((agency) => {
-              return (
+
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+          <Building size={20} className="text-[#2563EB]" /> Available Responders
+        </h2>
+
+        {isPending ? (
+          <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white/50 backdrop-blur-sm">
+            <span className="h-8 w-8 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#2563EB]"></span>
+          </div>
+        ) : nearbyAgencies.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center backdrop-blur-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-400 shadow-inner">
+              <Search size={32} />
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-700">
+              No Agencies Found
+            </h3>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              There are no agencies matching your criteria within immediate
+              range.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <td>{agency.agency_id}</td>
-                  <td>{agency.agency_name}</td>
-                  <td>{agency.category}</td>
-                  <td>{agency.distance_km} km away</td>
-                  <td>{agency.hotline_no}</td>
-                  <td>{agency.hq_location_address}</td>
-                  <td>{agency.official_email}</td>
-                  <td>{agency.updated_on}</td>
+                  <th className="p-4">Agency ID</th>
+                  <th className="p-4">Agency Name</th>
+                  <th className="p-4">Category</th>
+                  <th className="p-4">Distance</th>
+                  <th className="p-4">Hotline No</th>
+                  <th className="p-4">HQ Address</th>
+                  <th className="p-4">Official Email</th>
+                  <th className="p-4">Updated On</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {nearbyAgencies.map((agency, index) => (
+                  <tr
+                    key={`${agency.agency_id}-${index}`}
+                    className="transition-colors hover:bg-slate-50/50"
+                  >
+                    <td className="p-4 font-mono font-bold text-slate-900">
+                      {agency.agency_id}
+                    </td>
+                    <td className="p-4 font-bold text-slate-800">
+                      {agency.agency_name}
+                    </td>
+                    <td className="p-4">
+                      <span className="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                        {agency.category}
+                      </span>
+                    </td>
+                    <td className="p-4 font-semibold text-slate-700">
+                      {agency.distance_km} km away
+                    </td>
+                    <td className="p-4 font-semibold text-slate-700">
+                      {agency.hotline_no}
+                    </td>
+                    <td
+                      className="p-4 truncate max-w-50"
+                      title={agency.hq_location_address}
+                    >
+                      {agency.hq_location_address}
+                    </td>
+                    <td className="p-4 text-[#2563EB] font-medium">
+                      {agency.official_email}
+                    </td>
+                    <td className="p-4 text-xs font-medium text-slate-500">
+                      {agency.updated_on}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-      <div>
-        <MapContainer
-          center={[coordinates.latitude, coordinates.longitude]}
-          zoom={13}
-          style={{ height: "450px", width: "100%", zIndex: 0 }}
-        >
-          <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          {nearbyAgencies.map((agency) => {
-            const [lng, lat] = agency.hq_coordinates.coordinates;
-            return (
+
+      <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <MapPin size={18} className="text-[#2563EB]" /> Nearby Agencies Map
+          </h3>
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+          </span>
+        </div>
+
+        {coordinates?.latitude !== null && coordinates?.longitude !== null ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <MapContainer
+              center={[coordinates.latitude, coordinates.longitude]}
+              zoom={13}
+              style={{ height: "450px", width: "100%", zIndex: 0 }}
+            >
+              <TileLayer
+                attribution="&copy; OpenStreetMap contributors"
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+
+              {!isPending &&
+                nearbyAgencies.map((agency, index) => {
+                  const lng =
+                    agency.hq_coordinates.coordinates[0] + index * 0.00015;
+                  const lat =
+                    agency.hq_coordinates.coordinates[1] + index * 0.00015;
+
+                  return (
+                    <Marker
+                      key={`${agency.agency_id}-${index}`}
+                      position={[lat, lng]}
+                      icon={unitIcon}
+                    >
+                      <Popup>
+                        <div className="p-1 text-center">
+                          <strong className="block text-sm font-bold text-slate-900">
+                            {agency.agency_name}
+                          </strong>
+                          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                            {agency.category}
+                          </span>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Distance: {agency.distance_km}km away
+                          </p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
               <Marker
-                key={agency.agency_id}
-                position={[lat, lng]}
-                icon={unitIcon}
+                position={[coordinates.latitude, coordinates.longitude]}
+                icon={userLocationIcon}
               >
                 <Popup>
                   <div className="p-1 text-center">
                     <strong className="block text-sm font-bold text-slate-900">
-                      {agency.agency_name}
+                      Your Location
                     </strong>
-                    <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
-                      {agency.category}
-                    </span>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Distance: {agency.distance_km}km away
+                    <p className="text-xs text-slate-500">
+                      USER ID: {user?.user_id}
                     </p>
                   </div>
                 </Popup>
               </Marker>
-            );
-          })}
-          <Marker
-            position={[coordinates.latitude, coordinates.longitude]}
-            icon={userLocationIcon}
-          >
-            <Popup>
-              <div className="p-1 text-center">
-                <strong className="block text-sm font-bold text-slate-900">
-                  Your Location
-                </strong>
-                <p className="text-xs text-slate-500">
-                  USER ID: {user.user_id}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        </MapContainer>
+            </MapContainer>
+          </div>
+        ) : (
+          <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-50 text-sm font-medium text-slate-500">
+            Locating coordinates for map tracking...
+          </div>
+        )}
       </div>
     </div>
   );
@@ -4120,45 +4339,83 @@ const RequestAssistance = () => {
     });
   };
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Unit Type</span>
-            <select
-              {...register("unit_type", {
-                required: "This field is required",
-              })}
-            >
-              <option value=""></option>
-              <option value="MEDICAL">MEDICAL</option>
-              <option value="FIRE RESCUE">FIRE RESCUE</option>
-              <option value="WATER RESCUE">WATER RESCUE</option>
-              <option value="POLICE">POLICE</option>
-              <option value="EVACUATION">EVACUATION</option>
-              <option value="SEARCH RESCUE">SEARCH RESCUE</option>
-            </select>
-          </label>
-          {errors?.unit_type ? <p>{errors.unit_type.message}</p> : ""}
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-6">
+        <div className="mb-2 inline-flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[#64748B]">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: GOVT_ACCENT }}
+          />
+          Emergency Assistance
         </div>
-        <div>
-          <label className="floating-label">
-            <span>Description</span>
-            <textarea
-              placeholder="Mention necessary equipments or describe the situation..."
-              {...register("description", {
-                required: "This field is required!",
-              })}
-            />
-          </label>
-          {errors?.description ? <p>{errors.description.message}</p> : ""}
-        </div>
-        <div>
-          <button disabled={isPending} className="btn btn-primary">
-            REQUEST
-          </button>
-        </div>
-      </form>
+        <h2 className="text-2xl font-bold tracking-tight text-[#0F172A]">
+          Request Assistance
+        </h2>
+        <p className="mt-1 text-sm text-[#64748B]">
+          Request additional agency support for the active incident.{" "}
+        </p>
+      </div>
+      <div className="rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+        <form onSubmit={handleSubmit(submitHandler)} className="p-6 sm:p-7">
+          <div className="space-y-6">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#334155]">
+                Unit Type
+              </label>
+              <select
+                {...register("unit_type", {
+                  required: "This field is required",
+                })}
+                className="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A] outline-none transition-all focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10"
+              >
+                <option value=""></option>
+                <option value="MEDICAL">MEDICAL</option>
+                <option value="FIRE RESCUE">FIRE RESCUE</option>
+                <option value="WATER RESCUE">WATER RESCUE</option>
+                <option value="POLICE">POLICE</option>
+                <option value="EVACUATION">EVACUATION</option>
+                <option value="SEARCH RESCUE">SEARCH RESCUE</option>
+              </select>
+              {errors?.unit_type ? (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {errors.unit_type.message}
+                </p>
+              ) : (
+                ""
+              )}
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#334155]">
+                Description
+              </label>
+              <textarea
+                placeholder="Mention necessary equipments or describe the situation..."
+                {...register("description", {
+                  required: "This field is required!",
+                })}
+                rows={6}
+                className="w-full resize-none rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm leading-6 text-[#0F172A] outline-none transition-all placeholder:text-[#94A3B8] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10"
+              />
+              {errors?.description ? (
+                <p className="mt-1.5 text-xs font-medium text-red-600">
+                  {errors.description.message}
+                </p>
+              ) : (
+                ""
+              )}
+            </div>
+            <div className="flex justify-end border-t border-[#E2E8F0] pt-5">
+              <button
+                disabled={isPending}
+                className="inline-flex items-center justify-center rounded-lg px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ backgroundColor: GOVT_ACCENT }}
+              >
+                {isPending ? "REQUESTING..." : "REQUEST"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
@@ -4308,13 +4565,26 @@ const AgencyUnitActiveMission = () => {
                     {alert.updated_at}
                   </p>
                 </div>
-                <div>
-                  <h3>REQUEST ASSISTANCE</h3>
-                  <Link
-                    to={`/agency/units/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
-                  >
-                    REQUEST ASSISTANCE
-                  </Link>
+
+                <div className="col-span-2 mt-2 border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        Need additional support?
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        Request an available unit from another agency.
+                      </p>
+                    </div>
+
+                    <Link
+                      to={`/agency/units/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200 transition-all hover:bg-red-100 hover:shadow-sm"
+                    >
+                      <AlertTriangle size={15} strokeWidth={2.5} />
+                      Request Assistance
+                    </Link>
+                  </div>
                 </div>
               </div>
             );
@@ -6115,28 +6385,136 @@ const GovtRegister = () => {
   const [maskedPhone, setMaskedPhone] = useState("XXXXXXXXXX");
   const [officialData, setOfficialData] = useState(null);
 
+  const root = useRef(null);
+  const panelRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        ".gr-card",
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" },
+      );
+    }, root);
+    return () => ctx.revert();
+  }, []);
+
+  useEffect(() => {
+    if (!panelRef.current) return;
+    gsap.fromTo(
+      panelRef.current,
+      { opacity: 0, x: 14 },
+      { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" },
+    );
+  }, [step]);
+
   return (
-    <div>
-      <h1>Government Official Registration</h1>
-      {step === 1 ? (
-        <VerifyGovtCredentials
-          setStep={setStep}
-          setMaskedPhone={setMaskedPhone}
-          setOfficialData={setOfficialData}
-        />
-      ) : (
-        ""
-      )}
-      {step === 2 ? (
-        <VerifyGovOtp
-          setStep={setStep}
-          maskedPhone={maskedPhone}
-          officialData={officialData}
-        />
-      ) : (
-        ""
-      )}
-      {step === 3 ? <GovtRegistration officialData={officialData} /> : ""}
+    <div
+      ref={root}
+      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#F8FAFC] px-4 py-10 text-[#0F172A]"
+    >
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(67,56,202,0.06), transparent 70%)",
+        }}
+      />
+
+      <div className="gr-card relative z-10 w-full max-w-md">
+        <div className="mb-6 text-center">
+          <div className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: GOVT_ACCENT }}
+            />
+            Government Portal
+          </div>
+          <h1 className="text-[1.6rem] font-bold tracking-tight">
+            Official <span style={{ color: GOVT_ACCENT }}>Registration</span>
+          </h1>
+        </div>
+
+        <div className="mb-8 flex w-full items-center justify-between">
+          {GOVT_STEPS.map(({ id, label, Icon }, i) => {
+            const isDone = step > id;
+            const isActive = step === id;
+            return (
+              <div key={id}>
+                <div className="flex shrink-0 flex-col items-center gap-1.5">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full border text-[0.75rem] font-semibold transition-colors"
+                    style={{
+                      borderColor: isDone || isActive ? GOVT_ACCENT : "#E2E8F0",
+                      backgroundColor: isDone ? GOVT_ACCENT : "white",
+                      color: isDone
+                        ? "white"
+                        : isActive
+                          ? GOVT_ACCENT
+                          : "#94A3B8",
+                    }}
+                  >
+                    {Icon && <Icon size={14} strokeWidth={2.2} />}
+                  </div>
+                  <span
+                    className="hidden text-center text-[0.65rem] font-bold sm:block"
+                    style={{ color: isActive ? GOVT_ACCENT : "#94A3B8" }}
+                  >
+                    {label}
+                  </span>
+                </div>
+                {i < GOVT_STEPS.length - 1 && (
+                  <div
+                    className="mx-1 h-px flex-1 transition-colors duration-300 sm:mx-2"
+                    style={{
+                      backgroundColor: isDone ? GOVT_ACCENT : "#E2E8F0",
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          ref={panelRef}
+          className="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm"
+        >
+          {step === 1 && (
+            <VerifyGovtCredentials
+              setStep={setStep}
+              setMaskedPhone={setMaskedPhone}
+              setOfficialData={setOfficialData}
+            />
+          )}
+          {step === 2 && (
+            <VerifyGovOtp
+              setStep={setStep}
+              maskedPhone={maskedPhone}
+              officialData={officialData}
+            />
+          )}
+          {step === 3 && <GovtRegistration officialData={officialData} />}
+        </div>
+
+        <p className="mt-6 text-center text-[0.8rem] text-[#94A3B8]">
+          <Link to="/" className="hover:text-[#64748B]">
+            ← Back to ResQGrid home
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
@@ -6162,6 +6540,7 @@ const useLoginOfficial = () => {
 export const GovtLogin = () => {
   const { loginOfficial, isPending } = useLoginOfficial();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState(null);
   const {
     register,
@@ -6186,34 +6565,97 @@ export const GovtLogin = () => {
   };
 
   return (
-    <div>
-      {status === "pending" ? (
-        <h1>You have no roles assigned yet. Wait until then</h1>
-      ) : (
-        ""
-      )}
-      {status === "rejected" ? <h1>Your access is denied</h1> : ""}
-      {!status && (
-        <>
-          <h1>Government Login</h1>
-          <form onSubmit={handleSubmit(submitHandler)}>
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#F8FAFC] px-4 text-[#0F172A]">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 55% at 50% 30%, rgba(67,56,202,0.06), transparent 70%)",
+        }}
+      />
+
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-4xl border border-slate-200/80 bg-white/80 p-8 shadow-xl backdrop-blur-xl transition-all">
+        <div className="absolute -right-12 -top-12 -z-10 h-48 w-48 rounded-full bg-linear-to-br from-indigo-400/20 to-transparent blur-3xl"></div>
+
+        <div className="mb-8 text-center">
+          <div className="mb-2 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: "#4338CA" }}
+            />
+            Secure Authentication
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            Government <span style={{ color: "#4338CA" }}>Login</span>
+          </h1>
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            Enter your official credentials to access oversight portal
+          </p>
+        </div>
+
+        {status === "pending" ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-6 text-center backdrop-blur-sm">
+            <Clock size={28} className="mx-auto mb-2 text-amber-600" />
+            <h2 className="text-sm font-bold text-slate-900">
+              Role Unassigned
+            </h2>
+            <p className="mt-1 text-xs text-slate-600">
+              You have no roles assigned yet. Please wait for an administrator
+              to approve your request.
+            </p>
+          </div>
+        ) : status === "rejected" ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50/60 p-6 text-center backdrop-blur-sm">
+            <X size={28} className="mx-auto mb-2 text-red-600" />
+            <h2 className="text-sm font-bold text-slate-900">Access Denied</h2>
+            <p className="mt-1 text-xs text-slate-600">
+              Your request for official portal access was rejected.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit(submitHandler)} className="space-y-5">
             <div>
-              <label className="floating-label">
-                <span>Official Id</span>
-                <input
-                  type="text"
-                  {...register("official_id", {
-                    required: "This field is required",
-                  })}
-                />
-              </label>
-              {errors?.official_id ? <p>{errors.official_id.message}</p> : ""}
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Official ID
+              </span>
+              <input
+                type="text"
+                placeholder="e.g. GOV-2281"
+                className={govtInputClass}
+                disabled={isPending}
+                {...register("official_id", {
+                  required: "This field is required",
+                })}
+              />
+              {errors?.official_id && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">
+                  {errors.official_id.message}
+                </p>
+              )}
             </div>
+
             <div>
-              <label className="floating-label">
-                <span>Password</span>
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                Password
+              </span>
+              <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
+                  disabled={isPending}
+                  className={`${govtInputClass} pr-10`}
+                  placeholder="Enter your password"
                   {...register("password", {
                     required: "This field is required!",
                     minLength: {
@@ -6228,16 +6670,36 @@ export const GovtLogin = () => {
                     },
                   })}
                 />
-              </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#4338CA] focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {errors?.password && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
-            <div>
-              <button disabled={isPending} className="btn btn-primary">
-                Login
-              </button>
-            </div>
+
+            <GovtPrimaryButton type="submit" disabled={isPending}>
+              {isPending ? "Authenticating..." : "Access Portal"}
+            </GovtPrimaryButton>
           </form>
-        </>
-      )}
+        )}
+
+        <div className="mt-6 text-center">
+          <Link
+            to="/"
+            className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+          >
+            ← Back to ResQGrid home
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };
@@ -6370,12 +6832,12 @@ const GovtLayout = () => {
               <div className="mb-1 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-[#64748B]">
                 <span
                   className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: USER_ACCENT }}
+                  style={{ backgroundColor: GOVT_ACCENT }}
                 />
                 Government Portal
               </div>
               <h1 className="text-xl font-bold tracking-tight text-[#0F172A]">
-                ResQGrid <span style={{ color: USER_ACCENT }}>Government</span>
+                ResQGrid <span style={{ color: GOVT_ACCENT }}>Government</span>
               </h1>
             </div>
 
@@ -6387,7 +6849,7 @@ const GovtLayout = () => {
                   className={({ isActive }) =>
                     `ul-nav-item flex items-center gap-2 rounded-lg px-4 py-2.5 text-[0.88rem] font-semibold transition-all ${
                       isActive
-                        ? "bg-[#2563EB] text-white shadow-md shadow-blue-900/10"
+                        ? "bg-[#4338CA] text-white shadow-md shadow-indigo-900/10"
                         : "text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
                     }`
                   }
@@ -6433,12 +6895,12 @@ const GovtLayout = () => {
               <div className="mb-0.5 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
                 <span
                   className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: USER_ACCENT }}
+                  style={{ backgroundColor: GOVT_ACCENT }}
                 />
                 Government Portal
               </div>
               <h2 className="text-base font-bold text-slate-900">
-                ResQGrid <span style={{ color: USER_ACCENT }}>Citizen</span>
+                ResQGrid <span style={{ color: GOVT_ACCENT }}>Govt</span>
               </h2>
             </div>
             <button
@@ -6459,7 +6921,7 @@ const GovtLayout = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
                     isActive
-                      ? "bg-[#2563EB] text-white shadow-sm"
+                      ? "bg-[#4338CA] text-white shadow-sm"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`
                 }
@@ -6502,12 +6964,59 @@ const GovtLayout = () => {
 const GovtHome = () => {
   const { official } = useGovtAuth();
   return (
-    <div>
-      <h1>Welcome back, {official.name}</h1>
-      <p>Role: {official.role}</p>
-      <p>Designation: {official.designation}</p>
-      <p>Zone: {official.zone_name}</p>
-      <p>State: {official.state}</p>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
+      <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-[0.75rem] font-bold text-indigo-700">
+            <Landmark size={14} /> Official Verified
+          </div>
+        </div>
+
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Welcome back, {official.name}
+        </h1>
+        <p className="mt-2 text-sm text-slate-500">
+          You are securely logged into the ResQGrid Government oversight
+          network.
+        </p>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              Assigned Role
+            </p>
+            <p className="font-semibold text-slate-800 flex items-center gap-2">
+              <Shield size={16} className="text-[#4338CA]" /> {official.role}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              Designation
+            </p>
+            <p className="font-semibold text-slate-800 flex items-center gap-2">
+              <User size={16} className="text-[#4338CA]" />{" "}
+              {official.designation}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              Oversight Zone
+            </p>
+            <p className="font-semibold text-slate-800 flex items-center gap-2">
+              <MapPin size={16} className="text-[#4338CA]" />{" "}
+              {official.zone_name}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+              State Level
+            </p>
+            <p className="font-semibold text-slate-800 flex items-center gap-2">
+              <Building size={16} className="text-[#4338CA]" /> {official.state}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -6568,8 +7077,12 @@ const GovtSosInbox = () => {
 
   if (official.role === "AGENCY_ADMIN")
     return <Navigate to="/govt/home" replace />;
-  if (isPending) return <h1>Loading...</h1>;
-  if (alerts.length === 0) return <h1>No Active SOS at the moment</h1>;
+  if (isPending)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#4338CA]"></span>
+      </div>
+    );
 
   const sortedAlerts = [...alerts]
     .filter((alert) => alert.status === status)
@@ -6581,86 +7094,119 @@ const GovtSosInbox = () => {
     );
 
   return (
-    <div>
-      <h1>SOS ALERTS</h1>
-      <div>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
         <div>
-          <label className="floating-label">
-            <span>STATUS</span>
-            <select
-              className="select select-accent"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option value="pending">PENDING</option>
-              <option value="acknowledged">ACKNOWLEDGED</option>
-              <option value="dispatched">DISPATCHED</option>
-              <option value="resolved">RESOLVED</option>
-              <option value="cancelled">CANCELLED</option>
-            </select>
-          </label>
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>DISASTER TYPE</span>
-            <select
-              className="select select-accent"
-              value={disasterType}
-              onChange={(e) => setDisasterType(e.target.value)}
-            >
-              <option value="">ALL</option>
-              <option value="medical_emergency">MEDICAL EMERGENCY</option>
-              <option value="fire">FIRE</option>
-              <option value="flood">FLOOD</option>
-              <option value="cyclone">CYCLONE</option>
-              <option value="earthquake">EARTHQUAKE</option>
-              <option value="crowd_hazard">CROWD HAZARD</option>
-            </select>
-          </label>
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>SORT BY</span>
-            <select
-              className="select select-accent"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="earlier">EARLIER</option>
-              <option value="latest">LATEST</option>
-            </select>
-          </label>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <Siren className="text-[#4338CA]" /> Region SOS Alerts
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Monitor and oversee emergency alerts generated within your
+            jurisdiction.
+          </p>
         </div>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <FieldLabel>Status Filter</FieldLabel>
+          <select
+            className={govtInputClass + " cursor-pointer"}
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="pending">Pending</option>
+            <option value="acknowledged">Acknowledged</option>
+            <option value="dispatched">Dispatched</option>
+            <option value="resolved">Resolved</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Disaster Type</FieldLabel>
+          <select
+            className={govtInputClass + " cursor-pointer"}
+            value={disasterType}
+            onChange={(e) => setDisasterType(e.target.value)}
+          >
+            <option value="">All Types</option>
+            <option value="medical_emergency">Medical Emergency</option>
+            <option value="fire">Fire</option>
+            <option value="flood">Flood</option>
+            <option value="cyclone">Cyclone</option>
+            <option value="earthquake">Earthquake</option>
+            <option value="crowd_hazard">Crowd Hazard</option>
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Sort Order</FieldLabel>
+          <select
+            className={govtInputClass + " cursor-pointer"}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="earlier">Earliest First</option>
+            <option value="latest">Latest First</option>
+          </select>
+        </div>
+      </div>
+
       {sortedAlerts.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>SOS ID</th>
-              <th>DISASTER TYPE</th>
-              <th>STATUS</th>
-              <th>TRIGGERED AT</th>
-              <th>USER ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedAlerts.map((alert) => {
-              return (
-                <tr>
-                  <td>{alert.sos_id}</td>
-                  <td>{alert.disaster_type}</td>
-                  <td>{alert.status}</td>
-                  <td>{alert.triggered_at}</td>
-                  <td>
-                    <button className="btn btn-xs">{alert.user_id}</button>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left text-sm text-slate-600">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="p-4">SOS ID</th>
+                <th className="p-4">Disaster Type</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Triggered At</th>
+                <th className="p-4 text-right">User ID</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {sortedAlerts.map((alert) => (
+                <tr
+                  key={alert.sos_id}
+                  className="transition-colors hover:bg-slate-50/50"
+                >
+                  <td className="p-4 font-mono font-bold text-slate-900">
+                    {alert.sos_id}
+                  </td>
+                  <td className="p-4 font-semibold text-slate-700">
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] uppercase tracking-wider border border-slate-200">
+                      {alert.disaster_type.replace("_", " ")}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-bold text-orange-700 border border-orange-100">
+                      {alert.status}
+                    </span>
+                  </td>
+                  <td className="p-4 text-xs font-medium">
+                    {alert.triggered_at}
+                  </td>
+                  <td className="p-4 text-right">
+                    <span className="font-mono text-xs text-slate-500">
+                      {alert.user_id}
+                    </span>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <h1>No results found...</h1>
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Siren size={32} />
+          </div>
+          <h3 className="text-lg font-bold text-slate-700">
+            No matching SOS alerts
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            There are currently no alerts matching your selected filters.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -6692,69 +7238,102 @@ const GovtDispatchesInbox = () => {
         : new Date(b.assigned_at) - new Date(a.assigned_at),
     );
   return (
-    <div>
-      <h1>SOS DISPATCHES</h1>
-      <div>
-        <label className="floating-label">
-          <span>STATUS</span>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <Ambulance className="text-[#4338CA]" /> Active Dispatches
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Track responding agency units currently deployed in your zone.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-w-2xl">
+        <div>
+          <FieldLabel>Status Filter</FieldLabel>
           <select
-            className="select select-accent"
+            className={govtInputClass + " cursor-pointer"}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
-            <option value="EN ROUTE">EN ROUTE</option>
-            <option value="ON SCENE">ON SCENE</option>
-            <option value="RESOLVED">RESOLVED</option>
-            <option value="CANCELLED">CANCELLED</option>
+            <option value="EN ROUTE">En Route</option>
+            <option value="ON SCENE">On Scene</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="CANCELLED">Cancelled</option>
           </select>
-        </label>
-      </div>
-      <div>
-        <label className="floating-label">
-          <span>SORT BY</span>
+        </div>
+        <div>
+          <FieldLabel>Sort Order</FieldLabel>
           <select
-            className="select select-accent"
+            className={govtInputClass + " cursor-pointer"}
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
           >
-            <option value="earlier">EARLIER</option>
-            <option value="latest">LATEST</option>
+            <option value="earlier">Earliest First</option>
+            <option value="latest">Latest First</option>
           </select>
-        </label>
+        </div>
       </div>
       {sortedDispatches.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>DISPATCH ID</th>
-              <th>SOS ID</th>
-              <th>AGENCY ID</th>
-              <th>UNIT ID</th>
-              <th>UNIT TYPE</th>
-              <th>STATUS</th>
-              <th>ASSIGNED AT</th>
-              <th>UPDATED AT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedDispatches.map((dispatch) => {
-              return (
-                <tr>
-                  <td>{dispatch.dispatch_id}</td>
-                  <td>{dispatch.sos_id}</td>
-                  <td>{dispatch.agency_id}</td>
-                  <td>{dispatch.unit_id}</td>
-                  <td>{dispatch.unit_type}</td>
-                  <td>{dispatch.status}</td>
-                  <td>{dispatch.assigned_at}</td>
-                  <td>{dispatch.updated_at}</td>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="p-4">Dispatch ID</th>
+                <th className="p-4">SOS ID</th>
+                <th className="p-4">Agency ID</th>
+                <th className="p-4">Unit Type</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Assigned At</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {sortedDispatches.map((dispatch) => (
+                <tr
+                  key={dispatch.dispatch_id}
+                  className="transition-colors hover:bg-slate-50/50"
+                >
+                  <td className="p-4 font-mono font-bold text-slate-900">
+                    {dispatch.dispatch_id}
+                  </td>
+                  <td className="p-4 font-mono text-red-600 font-semibold">
+                    {dispatch.sos_id}
+                  </td>
+                  <td className="p-4 font-semibold text-slate-700">
+                    {dispatch.agency_id}
+                  </td>
+                  <td className="p-4">
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-slate-200">
+                      {dispatch.unit_type.replace("_", " ")}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 border border-blue-100">
+                      {dispatch.status}
+                    </span>
+                  </td>
+                  <td className="p-4 text-xs font-medium">
+                    {dispatch.assigned_at}
+                  </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <h1>No results found...</h1>
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Ambulance size={32} />
+          </div>
+          <h3 className="text-lg font-bold text-slate-700">
+            No active dispatches
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            There are currently no agency units dispatched matching the filters.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -6797,8 +7376,12 @@ const GovtPendingRequests = () => {
 
   if (official.role != "SUPER_ADMIN")
     return <Navigate to="/govt/home" replace />;
-  if (isPending) return <h1>Loading...</h1>;
-  if (pendingRequests.length === 0) return <h1>No pending requests</h1>;
+  if (isPending)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#4338CA]"></span>
+      </div>
+    );
 
   const sortedRequests = [...pendingRequests]
     .filter((request) => request.status === status)
@@ -6809,70 +7392,110 @@ const GovtPendingRequests = () => {
     );
 
   return (
-    <div>
-      <div>
-        <label className="floating-label">
-          <span>Status</span>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <Bell className="text-[#4338CA]" /> Access Requests
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Manage pending registration requests from other government
+            officials.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-w-2xl">
+        <div>
+          <FieldLabel>Status Filter</FieldLabel>
           <select
-            className="select select-accent"
+            className={govtInputClass + " cursor-pointer"}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
-            <option value="pending">PENDING</option>
-            <option value="rejected">REJECTED</option>
-            <option value="assigned">ASSIGNED</option>
+            <option value="pending">Pending Review</option>
+            <option value="assigned">Approved / Assigned</option>
+            <option value="rejected">Rejected</option>
           </select>
-        </label>
-        <label className="floating-label">
-          <span>Sort By</span>
+        </div>
+        <div>
+          <FieldLabel>Sort Order</FieldLabel>
           <select
-            className="select select-accent"
+            className={govtInputClass + " cursor-pointer"}
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
           >
-            <option value="earlier">EARLIER</option>
-            <option value="latest">LATEST</option>
+            <option value="earlier">Earliest First</option>
+            <option value="latest">Latest First</option>
           </select>
-        </label>
+        </div>
       </div>
+
       {sortedRequests.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>PENDING ID</th>
-              <th>OFFICIAL ID</th>
-              <th>OFFICIAL NAME</th>
-              <th>OFFICIAL EMAIL</th>
-              <th>DEPARTMENT</th>
-              <th>DESIGNATION</th>
-              <th>REQUEST STATUS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRequests.map((request) => {
-              return (
-                <tr>
-                  <td>
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="p-4">Action</th>
+                <th className="p-4">Pending ID</th>
+                <th className="p-4">Official Name</th>
+                <th className="p-4">Department</th>
+                <th className="p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {sortedRequests.map((request) => (
+                <tr
+                  key={request.pending_id}
+                  className="transition-colors hover:bg-slate-50/50"
+                >
+                  <td className="p-4">
                     <button
                       onClick={() => navigate(`${request.pending_id}`)}
-                      className="btn btn-xs btn-warning"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-600 transition hover:bg-indigo-100 border border-indigo-100"
                     >
-                      {request.pending_id}
+                      Review <ArrowRight size={12} />
                     </button>
                   </td>
-                  <td>{request.official_id}</td>
-                  <td>{request.name}</td>
-                  <td>{request.official_email}</td>
-                  <td>{request.department}</td>
-                  <td>{request.designation}</td>
-                  <td>{request.status}</td>
+                  <td className="p-4 font-mono font-semibold text-slate-800">
+                    {request.pending_id}
+                  </td>
+                  <td className="p-4 font-bold text-slate-900">
+                    {request.name}
+                  </td>
+                  <td className="p-4 font-medium text-slate-700">
+                    {request.department}
+                  </td>
+                  <td className="p-4">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                        request.status === "pending"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : request.status === "assigned"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-red-50 text-red-700 border-red-200"
+                      }`}
+                    >
+                      {request.status.toUpperCase()}
+                    </span>
+                  </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <h1>No results found...</h1>
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <Bell size={32} />
+          </div>
+          <h3 className="text-lg font-bold text-slate-700">
+            No requests found
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            There are no {status} official access requests right now.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -6952,13 +7575,19 @@ const GovtPendingRequest = () => {
   const { pendingRequest, isPending } = useGetPendingRequest();
   const { rejectRequest, isPending: rejecting } = useRejectRequest();
   const { approveRequest, isPending: approving } = useApproveRequest();
+  const navigate = useNavigate();
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm();
 
-  if (isPending) return <h1>Loading...</h1>;
+  if (isPending)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#4338CA]"></span>
+      </div>
+    );
 
   const rejectHandler = () => {
     const pending_id = pendingRequest.pending_id;
@@ -6985,59 +7614,211 @@ const GovtPendingRequest = () => {
   };
 
   if (!pendingRequest) {
-    return <h1>Pending request not found</h1>;
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 p-12 text-center backdrop-blur-sm max-w-2xl mx-auto">
+        <h3 className="text-lg font-bold text-slate-700">Request not found</h3>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <h1>{pendingRequest.pending_id}</h1>
-      <p>{pendingRequest.official_id}</p>
-      <p>{pendingRequest.name}</p>
-      <p>{pendingRequest.official_email}</p>
-      <p>{pendingRequest.department}</p>
-      <p>{pendingRequest.designation}</p>
-      <p>{pendingRequest.status}</p>
-      <h3>
-        {pendingRequest.action_taker
-          ? `Action taken by: ${pendingRequest.action_taker}`
-          : ""}
-      </h3>
-      {pendingRequest.status === "rejected" ||
-      pendingRequest.status === "assigned" ? (
-        ""
-      ) : (
+    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center justify-between">
         <div>
-          <button
-            disabled={rejecting}
-            onClick={rejectHandler}
-            className="btn btn-warning"
-          >
-            REJECT
-          </button>
-          <form onSubmit={handleSubmit(approveHandler)}>
+          <span className="font-mono text-xs font-bold uppercase tracking-widest text-[#4338CA]">
+            Request Review
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
+            {pendingRequest.pending_id}
+          </h1>
+        </div>
+        <button
+          onClick={() => navigate("/govt/pendingRequests")}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+        >
+          ← Back to List
+        </button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-6 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+              <User size={28} />
+            </div>
             <div>
-              <label className="floating-label">
-                <span>ASSIGN A ROLE</span>
+              <h2 className="text-xl font-bold text-slate-900">
+                {pendingRequest.name}
+              </h2>
+              <p className="text-sm font-semibold text-slate-500">
+                {pendingRequest.official_email}
+              </p>
+            </div>
+          </div>
+          <span
+            className={`inline-flex rounded-full px-3 py-1 text-xs font-bold border uppercase tracking-wider ${
+              pendingRequest.status === "pending"
+                ? "bg-amber-50 text-amber-700 border-amber-200"
+                : pendingRequest.status === "assigned"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-red-50 text-red-700 border-red-200"
+            }`}
+          >
+            {pendingRequest.status}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-y-6 gap-x-8 text-sm">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+              Official ID
+            </p>
+            <p className="font-mono font-semibold text-slate-900">
+              {pendingRequest.official_id}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+              Department
+            </p>
+            <p className="font-semibold text-slate-900">
+              {pendingRequest.department}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+              Designation
+            </p>
+            <p className="font-semibold text-slate-900">
+              {pendingRequest.designation}
+            </p>
+          </div>
+        </div>
+
+        {pendingRequest.action_taker && (
+          <div className="mt-8 rounded-xl bg-slate-50 p-4 border border-slate-100 flex items-center gap-2 text-sm">
+            <Shield size={16} className="text-slate-400" />
+            <span className="font-medium text-slate-600">
+              Action taken by:{" "}
+              <strong className="text-slate-900">
+                {pendingRequest.action_taker}
+              </strong>
+            </span>
+          </div>
+        )}
+
+        {pendingRequest.status === "pending" && (
+          <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6 flex flex-col gap-6">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+              <div>
+                <h3 className="font-bold text-slate-900">
+                  Immediate Rejection
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Deny this user access to the portal.
+                </p>
+              </div>
+              <button
+                disabled={rejecting}
+                onClick={rejectHandler}
+                className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-70 shadow-sm"
+              >
+                {rejecting ? "Rejecting..." : "Reject Request"}
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSubmit(approveHandler)}
+              className="flex items-end justify-between gap-4"
+            >
+              <div className="flex-1">
+                <FieldLabel>Assign Authority Role</FieldLabel>
                 <select
+                  className={govtInputClass + " cursor-pointer"}
                   {...register("role", {
-                    required: "This field is required",
+                    required: "You must assign a role to approve",
                   })}
                 >
-                  <option value=""></option>
-                  <option value="SUPER_ADMIN">SUPER ADMIN</option>
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="USER_ADMIN">USER ADMIN</option>
-                  <option value="AGENCY_ADMIN">AGENCY ADMIN</option>
+                  <option value="" disabled selected>
+                    Select an access level...
+                  </option>
+                  <option value="SUPER_ADMIN">Super Admin (All Access)</option>
+                  <option value="ADMIN">Admin (Zone Level)</option>
+                  <option value="USER_ADMIN">User Admin</option>
+                  <option value="AGENCY_ADMIN">Agency Admin</option>
                 </select>
-              </label>
-              {errors?.role ? <p>{errors.role.message}</p> : ""}
-            </div>
-            <button disabled={approving} className="btn btn-success">
-              APPROVE
-            </button>
-          </form>
+                <FieldError message={errors?.role?.message} />
+              </div>
+              <button
+                disabled={approving}
+                className="inline-flex h-12.5 items-center justify-center rounded-xl bg-[#4338CA] px-8 text-sm font-bold text-white transition hover:bg-indigo-800 disabled:opacity-70 shadow-sm"
+              >
+                {approving ? "Approving..." : "Approve & Assign"}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const govtInputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[0.92rem] text-slate-900 " +
+  "placeholder:text-slate-400 outline-none transition focus:border-[#4338CA] focus:ring-2 focus:ring-[#4338CA]/20";
+
+export const FullScreenLoader = ({
+  title = "Verifying Secure Connection",
+  subtitle = "Authenticating your credentials...",
+  accentColor = "#2563EB",
+  accentBg = "bg-blue-50",
+}) => {
+  return (
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#F8FAFC]">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E2E8F0 1px, transparent 1px), linear-gradient(90deg, #E2E8F0 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%)",
+        }}
+      />
+
+      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-6 rounded-4xl border border-slate-200/80 bg-white/80 p-10 shadow-xl backdrop-blur-xl">
+        <div
+          className={`relative flex h-20 w-20 items-center justify-center rounded-2xl ${accentBg} shadow-inner`}
+        >
+          <span
+            className="absolute inset-0 animate-ping rounded-2xl opacity-20"
+            style={{ backgroundColor: accentColor }}
+          ></span>
+          <ShieldCheck
+            size={36}
+            className="animate-pulse"
+            style={{ color: accentColor }}
+          />
         </div>
-      )}
+
+        <div className="flex flex-col items-center text-center">
+          <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
+            {title}
+          </h2>
+          <p className="mt-1.5 text-sm font-medium text-slate-500">
+            {subtitle}
+          </p>
+        </div>
+
+        <style>{`
+          @keyframes slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+          }
+        `}</style>
+      </div>
     </div>
   );
 };
