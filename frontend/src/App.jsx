@@ -7308,9 +7308,11 @@ const GovtDispatchesInbox = () => {
 
   if (official.role === "USER_ADMIN")
     return <Navigate to="/govt/home" replace />;
-  if (isPending) return <h1>Loading...</h1>;
-  if (dispatches.length === 0)
-    return <h1>No active dispatches at the moment</h1>;
+  if (isPending) return (
+    <div className="flex h-64 items-center justify-center">
+      <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#4338CA]"></span>
+    </div>
+  );
 
   let sortedDispatches = [...dispatches]
     .filter((dispatch) => dispatch.status === status)
