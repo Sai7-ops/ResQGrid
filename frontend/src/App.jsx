@@ -5990,85 +5990,122 @@ const VerifyGovtCredentials = ({
     });
   };
 
+  if (status === "pending") {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-8 text-center backdrop-blur-sm">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+          <Clock size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">
+          Application Pending
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          You have already applied. Your role is yet to be assigned by an
+          administrator.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === "rejected") {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50/60 p-8 text-center backdrop-blur-sm">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+          <X size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">Access Denied</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Your request for official access has been rejected by an
+          administrator.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === "assigned") {
+    return (
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-8 text-center backdrop-blur-sm">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+          <CheckCircle2 size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-slate-900">Already Registered</h2>
+        <p className="mt-2 text-sm text-slate-600 mb-6">
+          Your account is active and a role has been assigned.
+        </p>
+        <Link
+          to="/govt/login"
+          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
+        >
+          Proceed to Login
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      {status && status === "pending" ? (
-        <div>
-          <h1>You have already attempted to register.</h1>
-          <p>Your role is yet to be assigned</p>
-        </div>
-      ) : (
-        ""
-      )}
-      {status && status === "rejected" ? (
-        <div>
-          <h1>Your Access is denied!</h1>
-        </div>
-      ) : (
-        ""
-      )}
-      {status && status === "assigned" ? (
-        <div>You are are already registered. Try logging in instead</div>
-      ) : (
-        ""
-      )}
-      {!status && (
-        <>
-          <form onSubmit={handleSubmit(submitHandler)}>
-            <div>
-              <label htmlFor="floating-label">
-                <span>Official Id</span>
-                <input
-                  type="text"
-                  {...register("official_id", {
-                    required: "This field is required!",
-                  })}
-                />
-              </label>
-              {errors?.official_id ? <p>{errors.official_id}</p> : ""}
-            </div>
-            <div>
-              <label htmlFor="floating-label">
-                <span>Full Name</span>
-                <input
-                  type="text"
-                  {...register("name", {
-                    required: "This field is required!",
-                  })}
-                />
-              </label>
-              {errors?.name ? <p>{errors.name}</p> : ""}
-            </div>
-            <div>
-              <label htmlFor="floating-label">
-                <span>Aadhaar No.</span>
-                <input
-                  type="text"
-                  {...register("aadhaar_no", {
-                    required: "This field is required!",
-                    minLength: {
-                      value: 12,
-                      message: "Aadhaar no. must be exactly 12 digits",
-                    },
-                    maxLength: {
-                      value: 12,
-                      message: "Aadhaar no. must be exactly 12 digits",
-                    },
-                  })}
-                />
-              </label>
-              {errors?.aadhaar_no ? <p>{errors.aadhaar_no}</p> : ""}
-            </div>
-            <div>
-              <button disabled={isPending} className="btn btn-primary">
-                Continue
-              </button>
-            </div>
-          </form>
-          <Link to="/govt/login">Already registered? then login...</Link>
-        </>
-      )}
-    </div>
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+      <div>
+        <FieldLabel>Official ID</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={govtInputClass}
+          placeholder="e.g. GOV-2281"
+          {...register("official_id", {
+            required: "This field is required!",
+          })}
+        />
+        <FieldError message={errors?.official_id?.message} />
+      </div>
+      <div>
+        <FieldLabel>Full Legal Name</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={govtInputClass}
+          placeholder="As per government records"
+          {...register("name", {
+            required: "This field is required!",
+          })}
+        />
+        <FieldError message={errors?.name?.message} />
+      </div>
+      <div>
+        <FieldLabel>Aadhaar No.</FieldLabel>
+        <input
+          type="text"
+          disabled={isPending}
+          className={govtInputClass}
+          placeholder="12-digit number"
+          {...register("aadhaar_no", {
+            required: "This field is required!",
+            minLength: {
+              value: 12,
+              message: "Aadhaar no. must be exactly 12 digits",
+            },
+            maxLength: {
+              value: 12,
+              message: "Aadhaar no. must be exactly 12 digits",
+            },
+          })}
+        />
+        <FieldError message={errors?.aadhaar_no?.message} />
+      </div>
+
+      <GovtPrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Verifying..." : "Verify Identity"}
+      </GovtPrimaryButton>
+
+      <p className="text-center text-[0.82rem] text-[#64748B]">
+        Already registered?{" "}
+        <Link
+          to="/govt/login"
+          className="font-medium text-[#4338CA] hover:underline"
+        >
+          Log in
+        </Link>
+      </p>
+    </form>
   );
 };
 
@@ -6189,7 +6226,7 @@ const VerifyGovOtp = ({ setStep, maskedPhone, officialData }) => {
     <div className="space-y-4">
       <p className="text-center text-[0.85rem] text-[#64748B]">
         Enter the 6-digit verification code sent to{" "}
-        <span className="font-semibold text-[#0D9488]">{maskedPhone}</span>
+        <span className="font-semibold text-[#4338CA]">{maskedPhone}</span>
       </p>
 
       {serverErrorMessage && (
@@ -6212,10 +6249,10 @@ const VerifyGovOtp = ({ setStep, maskedPhone, officialData }) => {
               onKeyDown={(e) => handleKeyDown(idx, e)}
               onPaste={handlePaste}
               disabled={isPending}
-              className={`h-12 w-11 rounded-lg border text-center text-lg font-semibold outline-none transition focus:ring-2 focus:ring-[#0D948826] ${
+              className={`h-12 w-11 rounded-lg border text-center text-lg font-semibold outline-none transition focus:ring-2 focus:ring-[#4338CA26] ${
                 errors.otp || serverErrorMessage
                   ? "border-[#DC2626]"
-                  : "border-[#E2E8F0] focus:border-[#0D9488]"
+                  : "border-[#E2E8F0] focus:border-[#4338CA]"
               }`}
               autoFocus={idx === 0}
             />
@@ -6240,7 +6277,7 @@ const VerifyGovOtp = ({ setStep, maskedPhone, officialData }) => {
           <button
             type="submit"
             disabled={isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#0D9488] px-5 py-2.5 text-[0.88rem] font-semibold text-white transition hover:bg-[#0B7C72] disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#4338CA] px-5 py-2.5 text-[0.88rem] font-semibold text-white transition hover:bg-indigo-800 disabled:opacity-60"
           >
             {isPending && (
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -6274,6 +6311,8 @@ const useRegisterOfficial = () => {
 const GovtRegistration = ({ officialData }) => {
   const { registerOfficial, isPending } = useRegisterOfficial();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -6313,67 +6352,110 @@ const GovtRegistration = ({ officialData }) => {
   };
 
   return (
-    <div>
-      <form onSubmit={handleSubmit(submitHandler)}>
-        <div>
-          <label className="floating-label">
-            <span>Official Id</span>
-            <input type="text" value={officialData.official_id} readOnly />
-          </label>
+    <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
+      <div>
+        <FieldLabel>Official ID</FieldLabel>
+        <input 
+          type="text" 
+          value={officialData.official_id} 
+          readOnly 
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[0.92rem] text-slate-500 font-mono outline-none cursor-not-allowed"
+        />
+      </div>
+      <div>
+        <FieldLabel>Official Email</FieldLabel>
+        <input 
+          type="text" 
+          value={officialData.official_email} 
+          readOnly 
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[0.92rem] text-slate-500 outline-none cursor-not-allowed"
+        />
+      </div>
+      
+      <p className="pt-2 text-sm font-semibold text-slate-700">Set a password for future logins</p>
+      
+      <div>
+        <FieldLabel>Password</FieldLabel>
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            disabled={isPending}
+            className={`${govtInputClass} pr-10`}
+            placeholder="Create a strong password"
+            {...register("password", {
+              required: "This field is required",
+              minLength: {
+                value: 8,
+                message: "Password must be at least 8 characters",
+              },
+              pattern: {
+                value:
+                  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/,
+                message:
+                  "Password must contain uppercase, lowercase, number and special character",
+              },
+            })}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#4338CA] focus:outline-none"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
         </div>
-        <div>
-          <label className="floating-label">
-            <span>Official Email</span>
-            <input type="text" value={officialData.official_email} readOnly />
-          </label>
+        <FieldError message={errors?.password?.message} />
+      </div>
+      
+      <div>
+        <FieldLabel>Confirm Password</FieldLabel>
+        <div className="relative">
+          <input
+            type={showConfirmPassword ? "text" : "password"}
+            disabled={isPending}
+            className={`${govtInputClass} pr-10`}
+            placeholder="Confirm password"
+            {...register("confirmPassword", {
+              required: "This field is required",
+              validate: (value) =>
+                value === getValues("password") || "Passwords must match",
+            })}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#4338CA] focus:outline-none"
+          >
+            {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
         </div>
-        <p>Set a password for future logins</p>
-        <div>
-          <label className="floating-label">
-            <span>Password</span>
-            <input
-              type="password"
-              {...register("password", {
-                required: "This field is required",
-                minLength: {
-                  value: 8,
-                  message: "Password must be at least 8 characters",
-                },
-                pattern: {
-                  value:
-                    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/,
-                  message:
-                    "Password must contain uppercase, lowercase, number and special character",
-                },
-              })}
-            />
-          </label>
-          {errors?.password ? <p>{errors.password.message}</p> : ""}
-        </div>
-        <div>
-          <label className="floating-label">
-            <span>Confirm Password</span>
-            <input
-              type="password"
-              {...register("confirmPassword", {
-                required: "This field is required",
-                validate: (value) =>
-                  value === getValues("password") || "Passwords must match",
-              })}
-            />
-          </label>
-        </div>
-        <div>
-          <button disabled={isPending}>Register</button>
-        </div>
-      </form>
-      {check &&
-      (coordinates.latitude === null || coordinates.longitude === null) ? (
-        <p>Please wait until we fetch your location</p>
-      ) : (
-        ""
+        <FieldError message={errors?.confirmPassword?.message} />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-600 flex items-center justify-between mt-2">
+        <span className="flex items-center gap-1.5 font-medium">
+          <MapPin size={14} className="text-[#4338CA]" />
+          {coordinates.latitude
+            ? `GPS Acquired: ${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`
+            : "Acquiring GPS location..."}
+        </span>
+        <button
+          type="button"
+          onClick={fetchLocation}
+          className="font-bold text-[#4338CA] hover:underline"
+        >
+          Refresh
+        </button>
+      </div>
+      
+      {check && (coordinates.latitude === null || coordinates.longitude === null) && (
+        <FieldError message="Please wait until we fetch your location" />
       )}
-    </div>
+
+      <GovtPrimaryButton type="submit" disabled={isPending}>
+        {isPending ? "Submitting Request..." : "Submit Registration Request"}
+      </GovtPrimaryButton>
+    </form>
   );
 };
 
