@@ -312,6 +312,10 @@ function App() {
                 element={<AgencyUnitActiveMission />}
               />
               <Route
+                path="unit/:unit_id/trackRecords"
+                element={<AgencyTrackRecords />}
+              />
+              <Route
                 path="unit/:unit_id/activeMission/:sos_id/requestAssistance"
                 element={<RequestAssistance />}
               />
@@ -4420,6 +4424,14 @@ const RequestAssistance = () => {
   );
 };
 
+const AgencyTrackRecords = () => {
+  return (
+    <div>
+      <h1>Track Records</h1>
+    </div>
+  );
+};
+
 const AgencyUnitActiveMission = () => {
   const { data, isPending } = useGetUnitActiveMission();
   const navigate = useNavigate();
@@ -4620,7 +4632,8 @@ const AgencyUnitActiveMission = () => {
               </Popup>
             </Marker>
             {activeMission.map((alert) => {
-              const [sos_longitude, sos_latitude] = alert.sos_location.coordinates;
+              const [sos_longitude, sos_latitude] =
+                alert.sos_location.coordinates;
               return (
                 <Marker
                   position={[sos_latitude, sos_longitude]}
@@ -6355,25 +6368,27 @@ const GovtRegistration = ({ officialData }) => {
     <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
       <div>
         <FieldLabel>Official ID</FieldLabel>
-        <input 
-          type="text" 
-          value={officialData.official_id} 
-          readOnly 
+        <input
+          type="text"
+          value={officialData.official_id}
+          readOnly
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[0.92rem] text-slate-500 font-mono outline-none cursor-not-allowed"
         />
       </div>
       <div>
         <FieldLabel>Official Email</FieldLabel>
-        <input 
-          type="text" 
-          value={officialData.official_email} 
-          readOnly 
+        <input
+          type="text"
+          value={officialData.official_email}
+          readOnly
           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[0.92rem] text-slate-500 outline-none cursor-not-allowed"
         />
       </div>
-      
-      <p className="pt-2 text-sm font-semibold text-slate-700">Set a password for future logins</p>
-      
+
+      <p className="pt-2 text-sm font-semibold text-slate-700">
+        Set a password for future logins
+      </p>
+
       <div>
         <FieldLabel>Password</FieldLabel>
         <div className="relative">
@@ -6389,8 +6404,7 @@ const GovtRegistration = ({ officialData }) => {
                 message: "Password must be at least 8 characters",
               },
               pattern: {
-                value:
-                  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/,
+                value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/,
                 message:
                   "Password must contain uppercase, lowercase, number and special character",
               },
@@ -6406,7 +6420,7 @@ const GovtRegistration = ({ officialData }) => {
         </div>
         <FieldError message={errors?.password?.message} />
       </div>
-      
+
       <div>
         <FieldLabel>Confirm Password</FieldLabel>
         <div className="relative">
@@ -6447,10 +6461,11 @@ const GovtRegistration = ({ officialData }) => {
           Refresh
         </button>
       </div>
-      
-      {check && (coordinates.latitude === null || coordinates.longitude === null) && (
-        <FieldError message="Please wait until we fetch your location" />
-      )}
+
+      {check &&
+        (coordinates.latitude === null || coordinates.longitude === null) && (
+          <FieldError message="Please wait until we fetch your location" />
+        )}
 
       <GovtPrimaryButton type="submit" disabled={isPending}>
         {isPending ? "Submitting Request..." : "Submit Registration Request"}
@@ -7308,11 +7323,12 @@ const GovtDispatchesInbox = () => {
 
   if (official.role === "USER_ADMIN")
     return <Navigate to="/govt/home" replace />;
-  if (isPending) return (
-    <div className="flex h-64 items-center justify-center">
-      <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#4338CA]"></span>
-    </div>
-  );
+  if (isPending)
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#4338CA]"></span>
+      </div>
+    );
 
   let sortedDispatches = [...dispatches]
     .filter((dispatch) => dispatch.status === status)
@@ -7565,7 +7581,7 @@ const GovtPendingRequests = () => {
                     </span>
                   </td>
                   <td className="p-4 font-medium text-slate-700">
-                      {request.registered_on}
+                    {request.registered_on}
                   </td>
                 </tr>
               ))}
