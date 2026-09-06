@@ -2431,7 +2431,7 @@ const getAssistanceStatus = catchAsync(async (req, res) => {
 
   const result = await pool.query(
     `
-  SELECT
+  SELECT DISTINCT ON (aai.assisting_unit_id)
     aai.assist_id,
     aai.sos_id,
     aai.unit_id AS requesting_unit_id,
@@ -2458,17 +2458,20 @@ const getAssistanceStatus = catchAsync(async (req, res) => {
   LEFT JOIN agency_units au
     ON au.unit_id = aai.assisting_unit_id
 
-  LEFT JOIN sos_dispatches sd
-    ON sd.sos_id = aai.sos_id
-
   LEFT JOIN unit_dispatches ud
-    ON ud.dispatch_id = sd.dispatch_id
-    AND ud.unit_id = aai.assisting_unit_id
+    ON ud.unit_id = aai.assisting_unit_id
+
+  LEFT JOIN sos_dispatches sd
+    ON sd.dispatch_id = ud.dispatch_id
+    AND sd.sos_id = aai.sos_id
 
   WHERE aai.unit_id = $1
     AND aai.sos_id = $2
+    AND aai.assisting_unit_id IS NOT NULL
 
-  ORDER BY aai.assist_id DESC
+  ORDER BY
+    aai.assisting_unit_id,
+    aai.assist_id DESC
   `,
     [unit_id, sos_id],
   );
