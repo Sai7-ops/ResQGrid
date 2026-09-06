@@ -2487,7 +2487,7 @@ app.get(
 );
 app.get("/api/agency/assistRequests", verifyAgencyJWT, getAssistRequests);
 app.get(
-  "/api/agency/:unit_id/activeMission/:sos_id/assistanceStatus",
+  "/api/agency/unit/:unit_id/activeMission/:sos_id/assistanceStatus",
   verifyAgencyJWT,
   getAssistanceStatus,
 );
