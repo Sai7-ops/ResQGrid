@@ -52,8 +52,17 @@ export const UserSocketProvider = ({ children }) => {
         return [payload, ...prevData];
       });
       toast.success(`${payload.unit_type} is on the way!`, {
-        icon: "🚑"
+        icon: "🚑",
       });
+      try {
+        const audio = new Audio("/notification.mp3");
+
+        audio.play().catch((err) => {
+          console.log("Audio could not autoplay:", err.message);
+        });
+      } catch (err) {
+        console.error("Audio playback error:", err);
+      }
     });
 
     setUserSocket(socketInstance);
@@ -70,7 +79,7 @@ export const UserSocketProvider = ({ children }) => {
         alertStatus,
         setAlertStatus,
         dispatchData,
-        setDispatchData
+        setDispatchData,
       }}
     >
       {children}

@@ -54,7 +54,7 @@ export const AgencySocketProvider = ({ children }) => {
       });
 
       try {
-        const audio = new Audio("/alert.mp3");
+        const audio = new Audio("/notification.mp3");
 
         audio.play().catch((err) => {
           console.log("Audio could not autoplay:", err.message);
@@ -64,20 +64,28 @@ export const AgencySocketProvider = ({ children }) => {
       }
     });
 
-socketInstance.on("NEW_ASSISTANCE_REQUEST", (payload) => {
-  setAssistRequests((prevRequests) => {
-    const does_exist = prevRequests.some(
-      (request) =>
-        request.assist_id === payload.assist_id,
-    );
+    socketInstance.on("NEW_ASSISTANCE_REQUEST", (payload) => {
+      setAssistRequests((prevRequests) => {
+        const does_exist = prevRequests.some(
+          (request) => request.assist_id === payload.assist_id,
+        );
 
-    if (does_exist) {
-      return prevRequests;
-    }
+        if (does_exist) {
+          return prevRequests;
+        }
 
-    return [payload, ...prevRequests];
-  });
-});
+        return [payload, ...prevRequests];
+      });
+      try {
+        const audio = new Audio("/notification.mp3");
+
+        audio.play().catch((err) => {
+          console.log("Audio could not autoplay:", err.message);
+        });
+      } catch (err) {
+        console.error("Audio playback error:", err);
+      }
+    });
 
     socketInstance.on("CAPABILITY_CLAIMED", ({ sos_id, claimed_unit_type }) => {
       setSosAlerts((prevAlerts) => {
@@ -120,7 +128,7 @@ socketInstance.on("NEW_ASSISTANCE_REQUEST", (payload) => {
         sosAlerts,
         setSosAlerts,
         assistRequests,
-        setAssistRequests
+        setAssistRequests,
       }}
     >
       {children}
