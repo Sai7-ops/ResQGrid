@@ -2561,62 +2561,65 @@ const requestAgencyAssistance = catchAsync(async (req, res) => {
   const { sos_id, unit_id, agency_id, description } = req.body;
 
   const result = await pool.query(
-  `
-    INSERT INTO agency_assist_inbox (
-      sos_id,
-      unit_id,
-      agency_id,
-      status,
-      description,
-      unit_name,
-      agency_name,
-      unit_type,
-      dispatch_status,
-      sos_status
-    )
+    `
+      INSERT INTO agency_assist_inbox (
+        sos_id,
+        unit_id,
+        agency_id,
+        status,
+        description,
+        unit_name,
+        agency_name,
+        unit_type,
+        dispatch_status,
+        sos_status
+      )
 
-    SELECT
-      $1,
-      au.unit_id,
-      $3,
-      'PENDING',
-      $4,
-      au.unit_name,
-      au.agency_name,
-      au.unit_type,
-      ud.status,
-      sr.sos_status
+      SELECT
+        $1,
+        au.unit_id,
+        $3,
+        'PENDING',
+        $4,
+        au.unit_name,
+        a.agency_name,
+        au.unit_type,
+        ud.status,
+        sr.status
 
-    FROM agency_units au
+      FROM agency_units au
 
-    JOIN unit_dispatches ud
-      ON ud.unit_id = au.unit_id
+      JOIN agencies a
+        ON a.agency_id = au.agency_id
 
-    JOIN sos_dispatches sd
-      ON sd.dispatch_id = ud.dispatch_id
-     AND sd.sos_id = $1
+      JOIN unit_dispatches ud
+        ON ud.unit_id = au.unit_id
 
-    JOIN sos_requests sr
-      ON sr.sos_id = $1
+      JOIN sos_dispatches sd
+        ON sd.dispatch_id = ud.dispatch_id
+       AND sd.sos_id = $1
 
-    WHERE au.unit_id = $2
+      JOIN sos_requests sr
+        ON sr.sos_id = $1
 
-    RETURNING *
-  `,
-  [sos_id, unit_id, agency_id, description],
-);
+      WHERE au.unit_id = $2
 
-const assistanceRequest = result.rows[0];
+      RETURNING *
+    `,
+    [sos_id, unit_id, agency_id, description],
+  );
 
-io.to(`agency_${agency_id}`).emit(
-  "NEW_ASSISTANCE_REQUEST",
-  assistanceRequest,
-);
+  const assistanceRequest = result.rows[0];
 
-return res.status(201).json({
-  success: true,
-  data: assistanceRequest,
-});
+  io.to(`agency_${agency_id}`).emit(
+    "NEW_ASSISTANCE_REQUEST",
+    assistanceRequest,
+  );
+
+  return res.status(201).json({
+    success: true,
+    data: assistanceRequest,
+  });
 });
 
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
