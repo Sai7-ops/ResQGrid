@@ -4463,6 +4463,7 @@ const apiGetNearbyAssistanceAgencies = async ({
         sos_id,
         unit_id,
       },
+      withCredentials: true,
     },
   );
 
