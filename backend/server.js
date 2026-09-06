@@ -2592,7 +2592,7 @@ app.get(
 app.get(
   "/api/agency/unit/nearbyAssistanceAgencies",
   verifyAgencyJWT,
-  getNearbyAgencies,
+  getNearbyAssistance,
 );
 app.post(
   "/api/agency/unit/requestAssistance",
