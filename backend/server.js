@@ -2493,55 +2493,67 @@ const getNearbyAssistance = catchAsync(async (req, res) => {
 
   const result = await pool.query(
     `
-      SELECT
-        a.agency_id,
-        a.agency_name,
-        a.category,
-        a.hotline_no,
-        a.hq_location_address,
-        a.primary_capabilities_tags,
+    SELECT
+      a.agency_id,
+      a.agency_name,
+      a.category,
+      a.hotline_no,
+      a.hq_location_address,
+      a.primary_capabilities_tags,
 
-        ROUND(
-          (
-            ST_Distance(
-              a.hq_location::geography,
-              ST_SetSRID(
-                ST_MakePoint($2, $1),
-                4326
-              )::geography
-            ) / 1000
-          )::numeric,
-          2
-        ) AS distance_km,
+      ROUND(
+        (
+          ST_Distance(
+            a.hq_coordinates::geography,
+            ST_SetSRID(
+              ST_MakePoint($1, $2),
+              4326
+            )::geography
+          ) / 1000
+        )::numeric,
+        2
+      ) AS distance_km,
 
-        ST_AsGeoJSON(a.hq_location)::json AS hq_coordinates
+      ST_AsGeoJSON(a.hq_coordinates)::json AS hq_coordinates
 
-      FROM agencies a
+    FROM agencies a
 
-      WHERE a.hq_location IS NOT NULL
-        AND a.agency_id != (
-          SELECT agency_id
+    WHERE a.hq_coordinates IS NOT NULL
+    
+      AND ST_DWithin(
+        a.hq_coordinates::geography,
+        (
+          SELECT current_location::geography
           FROM agency_units
           WHERE unit_id = $3
-        )
-        AND NOT EXISTS (
-          SELECT 1
-          FROM agency_assist_inbox aai
-          WHERE aai.sos_id = $4
-            AND aai.unit_id = $3
-            AND aai.agency_id = a.agency_id
-        )
+        ),
+        a.coverage_radius_km * 1000
+      )
 
-      ORDER BY
-        a.hq_location::geography <->
-        ST_SetSRID(
-          ST_MakePoint($2, $1),
-          4326
-        )::geography;
-      `,
+      AND a.agency_id != (
+        SELECT agency_id
+        FROM agency_units
+        WHERE unit_id = $3
+      )
+
+      AND NOT EXISTS (
+        SELECT 1
+        FROM agency_assist_inbox aai
+        WHERE aai.sos_id = $4
+          AND aai.unit_id = $3
+          AND aai.agency_id = a.agency_id
+      )
+
+    ORDER BY
+      a.hq_coordinates::geography <->
+      (
+        SELECT current_location::geography
+        FROM agency_units
+        WHERE unit_id = $3
+      );
+  `,
     [longitude, latitude, unit_id, sos_id],
   );
-
   return res.status(200).json(result.rows);
 });
 
