@@ -2558,33 +2558,65 @@ const getNearbyAssistance = catchAsync(async (req, res) => {
 });
 
 const requestAgencyAssistance = catchAsync(async (req, res) => {
-  const { sos_id, unit_id, agency_id } = req.body;
+  const { sos_id, unit_id, agency_id, description } = req.body;
 
   const result = await pool.query(
-    `
-      INSERT INTO agency_assist_inbox (
-        sos_id,
-        unit_id,
-        agency_id,
-        status
-      )
-      VALUES ($1, $2, $3, 'PENDING')
-      RETURNING *
-      `,
-    [sos_id, unit_id, agency_id],
-  );
+  `
+    INSERT INTO agency_assist_inbox (
+      sos_id,
+      unit_id,
+      agency_id,
+      status,
+      description,
+      unit_name,
+      agency_name,
+      unit_type,
+      dispatch_status,
+      sos_status
+    )
 
-  const assistanceRequest = result.rows[0];
+    SELECT
+      $1,
+      au.unit_id,
+      $3,
+      'PENDING',
+      $4,
+      au.unit_name,
+      au.agency_name,
+      au.unit_type,
+      ud.status,
+      sr.sos_status
 
-  io.to(`agency_${agency_id}`).emit(
-    "NEW_ASSISTANCE_REQUEST",
-    assistanceRequest,
-  );
+    FROM agency_units au
 
-  return res.status(201).json({
-    success: true,
-    data: assistanceRequest,
-  });
+    JOIN unit_dispatches ud
+      ON ud.unit_id = au.unit_id
+
+    JOIN sos_dispatches sd
+      ON sd.dispatch_id = ud.dispatch_id
+     AND sd.sos_id = $1
+
+    JOIN sos_requests sr
+      ON sr.sos_id = $1
+
+    WHERE au.unit_id = $2
+
+    RETURNING *
+  `,
+  [sos_id, unit_id, agency_id, description],
+);
+
+const assistanceRequest = result.rows[0];
+
+io.to(`agency_${agency_id}`).emit(
+  "NEW_ASSISTANCE_REQUEST",
+  assistanceRequest,
+);
+
+return res.status(201).json({
+  success: true,
+  data: assistanceRequest,
+});
 });
 
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);

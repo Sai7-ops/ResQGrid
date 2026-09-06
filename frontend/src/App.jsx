@@ -4503,6 +4503,7 @@ const useGetNearbyAssistanceAgencies = ({
 const NearbyAgencyAssistance = () => {
   const queryClient = useQueryClient();
   const [disasterType, setDisasterType] = useState("MEDICAL");
+  const [description, setDescription] = useState("");
   const { unit_id, sos_id } = useParams();
   const { coordinates, loading, fetchLocation } = useGeolocation();
 
@@ -4542,6 +4543,7 @@ const NearbyAgencyAssistance = () => {
         sos_id,
         unit_id,
         agency_id: agency.agency_id,
+        description,
       },
       {
         onSuccess: (response) => {
@@ -4625,6 +4627,24 @@ const NearbyAgencyAssistance = () => {
               {unit_id}
             </p>
           </div>
+        </div>
+        <div className="mt-5 border-t border-slate-200 pt-5">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Assistance Description
+          </label>
+
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            placeholder="Describe the assistance you need..."
+            className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+
+          <p className="mt-1.5 text-xs text-slate-400">
+            This description will be submitted to the selected agency when you
+            request assistance.
+          </p>
         </div>
       </div>
 
