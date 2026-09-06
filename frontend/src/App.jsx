@@ -14,6 +14,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -86,6 +87,7 @@ import {
   AlertCircleIcon,
   HandHelping,
   ShieldCheck,
+  Send,
 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -318,6 +320,10 @@ function App() {
               <Route
                 path="unit/:unit_id/activeMission/:sos_id/requestAssistance"
                 element={<RequestAssistance />}
+              />
+              <Route
+                path="unit/:unit_id/activeMission/:sos_id/nearbyAgencyAssistance"
+                element={<NearbyAgencyAssistance />}
               />
             </Route>
           </Route>
@@ -4424,6 +4430,402 @@ const RequestAssistance = () => {
   );
 };
 
+const apiRequestAgencyAssistance = async (payload) => {
+  const response = await axios.post(
+    `https://resqgrid-x51v.onrender.com/api/agency/unit/requestAgencyAssistance`,
+    payload,
+    {
+      withCredentials: true,
+    },
+  );
+  return response.data;
+};
+
+const useRequestAgencyAssistance = () => {
+  const { mutate: requestAgencyAssistance, isPending } = useMutation({
+    mutationFn: apiRequestAgencyAssistance,
+  });
+  return { requestAgencyAssistance, isPending };
+};
+
+const apiGetNearbyAssistanceAgencies = async ({
+  latitude,
+  longitude,
+  sos_id,
+  unit_id,
+}) => {
+  const response = await axios.get(
+    "https://resqgrid-x51v.onrender.com/api/agency/unit/nearbyAssistanceAgencies",
+    {
+      params: {
+        latitude,
+        longitude,
+        sos_id,
+        unit_id,
+      },
+    },
+  );
+
+  return response.data;
+};
+
+const useGetNearbyAssistanceAgencies = ({
+  latitude,
+  longitude,
+  sos_id,
+  unit_id,
+}) => {
+  const { data: nearbyAgencies = [], isPending } = useQuery({
+    queryKey: [
+      "nearbyAssistanceAgencies",
+      latitude,
+      longitude,
+      sos_id,
+      unit_id,
+    ],
+    queryFn: () =>
+      apiGetNearbyAssistanceAgencies({
+        latitude,
+        longitude,
+        sos_id,
+        unit_id,
+      }),
+    enabled: latitude != null && longitude != null && !!sos_id && !!unit_id,
+  });
+
+  return {
+    nearbyAgencies,
+    isPending,
+  };
+};
+
+const NearbyAgencyAssistance = () => {
+  const queryClient = useQueryClient();
+  const [disasterType, setDisasterType] = useState("MEDICAL");
+  const { unit_id, sos_id } = useParams();
+  const { coordinates, loading, fetchLocation } = useGeolocation();
+
+  const { nearbyAgencies = [], isPending: agenciesLoading } =
+    useGetNearbyAssistanceAgencies({
+      latitude: coordinates?.latitude,
+      longitude: coordinates?.longitude,
+      sos_id,
+      unit_id,
+    });
+
+  const filteredAgencies = useMemo(() => {
+    if (!disasterType) return nearbyAgencies;
+
+    return nearbyAgencies.filter((agency) =>
+      agency.primary_capabilities_tags?.some(
+        (tag) => tag.toLowerCase() === disasterType.toLowerCase(),
+      ),
+    );
+  }, [nearbyAgencies, disasterType]);
+
+  const { requestAgencyAssistance, isPending: assistanceRequesting } =
+    useRequestAgencyAssistance();
+
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
+
+  const requestAssistance = (agency) => {
+    if (!sos_id || !unit_id) {
+      toast.error("Active mission not found.");
+      return;
+    }
+
+    requestAgencyAssistance(
+      {
+        sos_id,
+        unit_id,
+        agency_id: agency.agency_id,
+      },
+      {
+        onSuccess: (response) => {
+          if (response?.success) {
+            toast.success(`Assistance requested from ${agency.agency_name}.`);
+
+            queryClient.invalidateQueries({
+              queryKey: ["nearbyAssistanceAgencies"],
+            });
+          } else {
+            toast.error(response?.message || "Failed to request assistance.");
+          }
+        },
+
+        onError: (error) => {
+          toast.error(
+            error?.response?.data?.message || "Failed to request assistance.",
+          );
+        },
+      },
+    );
+  };
+
+  if (loading || agenciesLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+      </div>
+    );
+  }
+
+  if (coordinates?.latitude == null || coordinates?.longitude == null) {
+    return (
+      <div className="mx-auto mt-10 max-w-xl rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <MapPin size={36} className="mx-auto mb-4 text-blue-600" />
+
+        <h2 className="text-lg font-bold text-slate-900">
+          Location unavailable
+        </h2>
+
+        <p className="mt-2 text-sm text-slate-500">
+          We need your unit's current location to find nearby agencies.
+        </p>
+      </div>
+    );
+  }
+
+  const mapCenter = [coordinates.latitude, coordinates.longitude];
+
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-6">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-900">
+            <Send size={24} className="text-blue-600" />
+            Request Assistance
+          </h1>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Request assistance from nearby agencies for your active SOS.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              SOS ID
+            </p>
+
+            <p className="mt-1 font-mono text-sm font-bold text-slate-900">
+              #{sos_id}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Requesting Unit
+            </p>
+
+            <p className="mt-1 font-mono text-sm font-bold text-slate-900">
+              {unit_id}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-slate-200 pt-5">
+        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Assistance Type
+        </label>
+
+        <select
+          value={disasterType}
+          onChange={(e) => setDisasterType(e.target.value)}
+          className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 md:w-80"
+        >
+          <option value="">All Assistance Types</option>
+          <option value="FIRE RESCUE">FIRE RESCUE</option>
+          <option value="WATER RESCUE">WATER RESCUE</option>
+          <option value="MEDICAL">MEDICAL</option>
+          <option value="FOOD DISTRIBUTION">FOOD DISTRIBUTION</option>
+          <option value="HEAVY CLEARANCE">HEAVY CLEARANCE</option>
+          <option value="SHELTER">SHELTER</option>
+        </select>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+            <Building size={20} className="text-blue-600" />
+            Available Agencies (Showing results for {disasterType})
+          </h2>
+
+          <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+            {filteredAgencies.length} Available
+          </span>
+        </div>
+
+        {filteredAgencies.length === 0 ? (
+          <div className="rounded-3xl border-2 border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+              <Search size={32} />
+            </div>
+
+            <h3 className="text-xl font-extrabold text-slate-700">
+              No Available Agencies
+            </h3>
+
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              There are no nearby agencies available for an assistance request.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="p-4">Agency ID</th>
+
+                  <th className="p-4">Agency Name</th>
+
+                  <th className="p-4">Category</th>
+
+                  <th className="p-4">Distance</th>
+
+                  <th className="p-4 text-center">Action</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {filteredAgencies.map((agency) => (
+                  <tr
+                    key={agency.agency_id}
+                    className="transition-colors hover:bg-slate-50"
+                  >
+                    <td className="p-4 font-mono font-bold text-slate-900">
+                      {agency.agency_id}
+                    </td>
+
+                    <td className="p-4 font-bold text-slate-800">
+                      {agency.agency_name}
+                    </td>
+
+                    <td className="p-4">
+                      <span className="rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                        {agency.category}
+                      </span>
+                    </td>
+
+                    <td className="p-4 font-semibold text-slate-700">
+                      {agency.distance_km} km
+                    </td>
+
+                    <td className="p-4 text-center">
+                      <button
+                        disabled={assistanceRequesting}
+                        onClick={() => requestAssistance(agency)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+                      >
+                        <Send size={14} />
+                        Request Assistance
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <MapPin size={18} className="text-blue-600" />
+              Assistance Agencies Map
+            </h3>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Showing agencies available for assistance.
+            </p>
+          </div>
+
+          <span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+            {filteredAgencies.length} Agencies
+          </span>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200">
+          <MapContainer
+            center={mapCenter}
+            zoom={13}
+            style={{
+              height: "450px",
+              width: "100%",
+              zIndex: 0,
+            }}
+          >
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+            <Marker position={mapCenter} icon={userLocationIcon}>
+              <Popup>
+                <div className="p-1 text-center">
+                  <strong className="block text-sm font-bold text-slate-900">
+                    Requesting Unit
+                  </strong>
+
+                  <p className="mt-1 text-xs text-slate-500">{unit_id}</p>
+
+                  <p className="text-xs text-slate-500">SOS #{sos_id}</p>
+                </div>
+              </Popup>
+            </Marker>
+
+            {filteredAgencies.map((agency) => {
+              if (!agency.hq_coordinates?.coordinates) {
+                return null;
+              }
+
+              const [lng, lat] = agency.hq_coordinates.coordinates;
+
+              return (
+                <Marker
+                  key={agency.agency_id}
+                  position={[lat, lng]}
+                  icon={unitIcon}
+                >
+                  <Popup>
+                    <div className="min-w-50 p-1 text-center">
+                      <strong className="block text-sm font-bold text-slate-900">
+                        {agency.agency_name}
+                      </strong>
+
+                      <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                        {agency.category}
+                      </span>
+
+                      <p className="mt-2 text-xs text-slate-500">
+                        {agency.distance_km} km away
+                      </p>
+
+                      <button
+                        disabled={assistanceRequesting}
+                        onClick={() => requestAssistance(agency)}
+                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+                      >
+                        <Send size={13} />
+                        Request Assistance
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AgencyTrackRecords = () => {
   return (
     <div>
@@ -4606,23 +5008,33 @@ const AgencyUnitActiveMission = () => {
                 </div>
 
                 <div className="col-span-2 mt-2 border-t border-slate-100 pt-4">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="col-span-2 mt-2 border-t border-slate-100 pt-4">
                     <div>
                       <p className="text-sm font-bold text-slate-800">
                         Need additional support?
                       </p>
+
                       <p className="mt-0.5 text-xs text-slate-500">
-                        Request an available unit from another agency.
+                        Choose how you want to request assistance.
                       </p>
                     </div>
 
-                    <Link
-                      to={`/agency/unit/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200 transition-all hover:bg-red-100 hover:shadow-sm"
-                    >
-                      <AlertTriangle size={15} strokeWidth={2.5} />
-                      Request Assistance
-                    </Link>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => {}}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200 transition-all hover:bg-red-100 hover:shadow-sm"
+                      >
+                        <Radio size={15} strokeWidth={2.5} />
+                        Broadcast Assistance
+                      </button>
+                      <Link
+                        to={`/agency/unit/${unit_id}/activeMission/${alert.sos_id}/nearbyAgencyAssistance`}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-blue-700 ring-1 ring-blue-200 transition-all hover:bg-blue-100 hover:shadow-sm"
+                      >
+                        <Building size={15} strokeWidth={2.5} />
+                        Request from Agency
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -4832,7 +5244,7 @@ const useVerifyAgency = () => {
   return { verifyAgency, isPending };
 };
 
-export const AgencyVerification = ({ setStep, setAgency }) => {
+const AgencyVerification = ({ setStep, setAgency }) => {
   const { verifyAgency, isPending } = useVerifyAgency();
   const {
     register,
@@ -4901,11 +5313,7 @@ export const AgencyVerification = ({ setStep, setAgency }) => {
   );
 };
 
-export const PersonnelVerification = ({
-  setStep,
-  setOfficialId,
-  setMaskedPhone,
-}) => {
+const PersonnelVerification = ({ setStep, setOfficialId, setMaskedPhone }) => {
   const { verifyPersonnel, isPending } = useVerifyAgencyPersonnel();
   const {
     register,
@@ -4959,7 +5367,7 @@ export const PersonnelVerification = ({
   );
 };
 
-export const SMSOtp = ({ setStep, maskedPhone, officialId }) => {
+const SMSOtp = ({ setStep, maskedPhone, officialId }) => {
   const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef([]);
   const [serverError, setServerError] = useState(null);
@@ -5187,7 +5595,7 @@ const useVerifyEmailOtp = () => {
   return { verifyEmailOtp, isPending };
 };
 
-export const EmailOtp = ({ setStep, email }) => {
+const EmailOtp = ({ setStep, email }) => {
   const [otpValues, setOtpValues] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef([]);
 
@@ -5379,7 +5787,7 @@ const useRegisterAgency = () => {
   return { registerAgency, isPending };
 };
 
-export const AgencyRegistration = ({ agency, setStep }) => {
+const AgencyRegistration = ({ agency, setStep }) => {
   const { coordinates, loading, error, fetchLocation } = useGeolocation();
   const navigate = useNavigate();
   const {
@@ -5660,7 +6068,7 @@ const useVerifySmsOtp = () => {
   return { verifySmsOtp, isPending };
 };
 
-export const AgencyRegister = () => {
+const AgencyRegister = () => {
   const [step, setStep] = useState(() => {
     const step = localStorage.getItem("step") || 1;
     return Number(step);
@@ -5828,7 +6236,7 @@ const useAgencyLogin = () => {
   return { agencyLogin, isPending };
 };
 
-export const AgencyLogin = () => {
+const AgencyLogin = () => {
   const { agencyLogin, isPending } = useAgencyLogin();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -5982,7 +6390,7 @@ const useGetMyAgency = () => {
   return { agency, isPending };
 };
 
-export const AgencyHome = () => {
+const AgencyHome = () => {
   const { agency, isPending } = useGetMyAgency();
   const { agencyUnits, isPending: unitsPending } = useGetAgencyUnits();
   const homeRef = useRef(null);
@@ -6783,7 +7191,7 @@ const useLoginOfficial = () => {
   return { loginOfficial, isPending };
 };
 
-export const GovtLogin = () => {
+const GovtLogin = () => {
   const { loginOfficial, isPending } = useLoginOfficial();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -8020,7 +8428,7 @@ const govtInputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[0.92rem] text-slate-900 " +
   "placeholder:text-slate-400 outline-none transition focus:border-[#4338CA] focus:ring-2 focus:ring-[#4338CA]/20";
 
-export const FullScreenLoader = ({
+const FullScreenLoader = ({
   title = "Verifying Secure Connection",
   subtitle = "Authenticating your credentials...",
   accentColor = "#2563EB",

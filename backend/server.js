@@ -2429,8 +2429,8 @@ const getAssistRequests = catchAsync(async (req, res) => {
 const getAssistanceStatus = catchAsync(async (req, res) => {
   const { unit_id, sos_id } = req.params;
 
-const result = await pool.query(
-  `
+  const result = await pool.query(
+    `
   SELECT DISTINCT ON (aai.assisting_unit_id)
     aai.assist_id,
     aai.sos_id,
@@ -2475,11 +2475,104 @@ const result = await pool.query(
     aai.assisting_unit_id,
     ud.dispatch_id DESC
   `,
-  [unit_id, sos_id]
-);
+    [unit_id, sos_id],
+  );
   console.log(result.rows);
 
   return res.status(200).json(result.rows);
+});
+
+const getNearbyAssistance = catchAsync(async (req, res) => {
+  const { latitude, longitude, sos_id, unit_id } = req.query;
+
+  if (latitude == null || longitude == null || !sos_id || !unit_id) {
+    return res.status(400).json({
+      message: "latitude, longitude, sos_id and unit_id are required.",
+    });
+  }
+
+  const result = await pool.query(
+    `
+      SELECT
+        a.agency_id,
+        a.agency_name,
+        a.category,
+        a.hotline_no,
+        a.hq_location_address,
+        a.primary_capabilities_tags
+
+        ROUND(
+          (
+            ST_Distance(
+              a.hq_location::geography,
+              ST_SetSRID(
+                ST_MakePoint($2, $1),
+                4326
+              )::geography
+            ) / 1000
+          )::numeric,
+          2
+        ) AS distance_km,
+
+        ST_AsGeoJSON(a.hq_location)::json AS hq_coordinates
+
+      FROM agencies a
+
+      WHERE a.hq_location IS NOT NULL
+        AND a.agency_id != (
+          SELECT agency_id
+          FROM agency_units
+          WHERE unit_id = $3
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM agency_assist_inbox aai
+          WHERE aai.sos_id = $4
+            AND aai.unit_id = $3
+            AND aai.agency_id = a.agency_id
+        )
+
+      ORDER BY
+        a.hq_location::geography <->
+        ST_SetSRID(
+          ST_MakePoint($2, $1),
+          4326
+        )::geography;
+      `,
+    [latitude, longitude, unit_id, sos_id],
+  );
+
+  return res.status(200).json(result.rows);
+});
+
+const requestAgencyAssistance = catchAsync(async (req, res) => {
+  const { sos_id, unit_id, agency_id } = req.body;
+
+  const result = await pool.query(
+    `
+      INSERT INTO agency_assist_inbox (
+        sos_id,
+        unit_id,
+        agency_id,
+        status
+      )
+      VALUES ($1, $2, $3, 'PENDING')
+      RETURNING *
+      `,
+    [sos_id, unit_id, agency_id],
+  );
+
+  const assistanceRequest = result.rows[0];
+
+  io.to(`agency_${agency_id}`).emit(
+    "NEW_ASSISTANCE_REQUEST",
+    assistanceRequest,
+  );
+
+  return res.status(201).json({
+    success: true,
+    data: assistanceRequest,
+  });
 });
 
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
@@ -2496,10 +2589,20 @@ app.get(
   verifyAgencyJWT,
   getAssistanceStatus,
 );
+app.get(
+  "/api/agency/unit/nearbyAssistanceAgencies",
+  verifyAgencyJWT,
+  getNearbyAgencies,
+);
 app.post(
   "/api/agency/unit/requestAssistance",
   verifyAgencyJWT,
   requestAssistance,
+);
+app.post(
+  "/api/agency/unit/requestAgencyAssistance",
+  verifyAgencyJWT,
+  requestAgencyAssistance,
 );
 app.post("/api/agency/verifyAgency", verifyAgency);
 app.post("/api/agency/verifyAgencyPersonnel", verifyAgencyPersonnel);
