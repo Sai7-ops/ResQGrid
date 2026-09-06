@@ -5020,13 +5020,13 @@ const AgencyUnitActiveMission = () => {
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => {}}
+                      <Link
+                        to={`/agency/unit/${unit_id}/activeMission/${alert.sos_id}/requestAssistance`}
                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200 transition-all hover:bg-red-100 hover:shadow-sm"
                       >
                         <Radio size={15} strokeWidth={2.5} />
                         Broadcast Assistance
-                      </button>
+                      </Link>
                       <Link
                         to={`/agency/unit/${unit_id}/activeMission/${alert.sos_id}/nearbyAgencyAssistance`}
                         className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-blue-700 ring-1 ring-blue-200 transition-all hover:bg-blue-100 hover:shadow-sm"
