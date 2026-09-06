@@ -4434,7 +4434,8 @@ const AgencyTrackRecords = () => {
 
 const apiGetAssistanceStatus = async ({ sos_id, unit_id }) => {
   const response = await axios.get(
-    `https://resqgrid-x51v.onrender.com/api/agency/unit/${unit_id}/activeMission/${sos_id}/assistanceStatus`
+    `https://resqgrid-x51v.onrender.com/api/agency/unit/${unit_id}/activeMission/${sos_id}/assistanceStatus`,
+    { withCredentials: true },
   );
 
   return response.data;
@@ -4457,12 +4458,12 @@ const AgencyUnitActiveMission = () => {
   const { data, isPending } = useGetUnitActiveMission();
   const navigate = useNavigate();
 
-   const activeMission = data || [];
+  const activeMission = data || [];
 
   const sos_id = activeMission[0]?.sos_id;
   const unit_id = activeMission[0]?.unit_id;
 
-    const {
+  const {
     assistanceStatus = [],
     // isPending: assistancePending,
   } = useGetAssistanceStatus({
@@ -4500,13 +4501,8 @@ const AgencyUnitActiveMission = () => {
     );
   }
 
-  const {
-    assigned_at,
-    dispatch_status,
-    unit_name,
-    unit_type,
-    unit_location,
-  } = activeMission[0];
+  const { assigned_at, dispatch_status, unit_name, unit_type, unit_location } =
+    activeMission[0];
 
   const [unit_longitude, unit_latitude] = unit_location.coordinates;
 
@@ -4635,7 +4631,7 @@ const AgencyUnitActiveMission = () => {
         </div>
       </div>
 
-       {assistanceStatus.length > 0 && (
+      {assistanceStatus.length > 0 && (
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -4671,8 +4667,7 @@ const AgencyUnitActiveMission = () => {
                   </div>
 
                   <span className="rounded-md bg-teal-50 px-2 py-1 text-[10px] font-bold uppercase text-teal-700">
-                    {assistance.dispatch_status ||
-                      assistance.assistance_status}
+                    {assistance.dispatch_status || assistance.assistance_status}
                   </span>
                 </div>
 
@@ -4763,18 +4758,13 @@ const AgencyUnitActiveMission = () => {
                 return null;
               }
 
-              const [
-                assisting_longitude,
-                assisting_latitude,
-              ] = assistance.unit_location.coordinates;
+              const [assisting_longitude, assisting_latitude] =
+                assistance.unit_location.coordinates;
 
               return (
                 <Marker
                   key={`assist-${assistance.assist_id}`}
-                  position={[
-                    assisting_latitude,
-                    assisting_longitude,
-                  ]}
+                  position={[assisting_latitude, assisting_longitude]}
                   icon={unitIcon}
                 >
                   <Popup>
@@ -4814,7 +4804,6 @@ const AgencyUnitActiveMission = () => {
                 </Marker>
               );
             })}
-
           </MapContainer>
         </div>
       </div>
