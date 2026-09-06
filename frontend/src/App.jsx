@@ -4457,6 +4457,19 @@ const AgencyUnitActiveMission = () => {
   const { data, isPending } = useGetUnitActiveMission();
   const navigate = useNavigate();
 
+   const activeMission = data || [];
+
+  const sos_id = activeMission[0]?.sos_id;
+  const unit_id = activeMission[0]?.unit_id;
+
+    const {
+    assistanceStatus = [],
+    // isPending: assistancePending,
+  } = useGetAssistanceStatus({
+    sos_id,
+    unit_id,
+  });
+
   if (isPending) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -4487,26 +4500,13 @@ const AgencyUnitActiveMission = () => {
     );
   }
 
-  const activeMission = data;
-
   const {
     assigned_at,
     dispatch_status,
     unit_name,
     unit_type,
-    unit_id,
     unit_location,
   } = activeMission[0];
-
-  const { sos_id } = activeMission[0];
-
-  const {
-    assistanceStatus = [],
-    isPending: assistancePending,
-  } = useGetAssistanceStatus({
-    sos_id,
-    unit_id,
-  });
 
   const [unit_longitude, unit_latitude] = unit_location.coordinates;
 
