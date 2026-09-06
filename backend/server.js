@@ -388,7 +388,13 @@ io.on("connection", async (socket) => {
     socket.on("ASSIST_SOS_REQUEST", async (payload, callback) => {
       const { assist_id, sos_id, unit_id, agency_id, assisting_unit_id } =
         payload;
-
+      console.log("ASSIST_SOS_REQUEST PAYLOAD:", {
+        assist_id,
+        sos_id,
+        unit_id,
+        agency_id,
+        assisting_unit_id,
+      });
       try {
         const assist_result = await pool.query(
           `
@@ -2423,7 +2429,7 @@ const getAssistRequests = catchAsync(async (req, res) => {
 const getAssistanceStatus = catchAsync(async (req, res) => {
   const { unit_id, sos_id } = req.params;
 
-const result = await pool.query(
+  const result = await pool.query(
     `
     SELECT
       aai.assist_id,
@@ -2464,7 +2470,7 @@ const result = await pool.query(
 
     ORDER BY aai.assist_id DESC
     `,
-    [unit_id, sos_id]
+    [unit_id, sos_id],
   );
 
   return res.status(200).json({
@@ -2482,7 +2488,11 @@ app.get(
   getUnitActiveMission,
 );
 app.get("/api/agency/assistRequests", verifyAgencyJWT, getAssistRequests);
-app.get("/api/agency/:unit_id/activeMission/:sos_id/assistanceStatus", verifyAgencyJWT, getAssistanceStatus);
+app.get(
+  "/api/agency/:unit_id/activeMission/:sos_id/assistanceStatus",
+  verifyAgencyJWT,
+  getAssistanceStatus,
+);
 app.post(
   "/api/agency/unit/requestAssistance",
   verifyAgencyJWT,
