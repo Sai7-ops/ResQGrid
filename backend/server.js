@@ -2473,10 +2473,7 @@ const getAssistanceStatus = catchAsync(async (req, res) => {
     [unit_id, sos_id],
   );
 
-  return res.status(200).json({
-    success: true,
-    assistanceStatus: result.rows,
-  });
+  return res.status(200).json(result.rows);
 });
 
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
