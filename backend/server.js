@@ -386,7 +386,8 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("ASSIST_SOS_REQUEST", async (payload, callback) => {
-      const { assist_id, sos_id, unit_id, agency_id } = payload;
+      const { assist_id, sos_id, unit_id, agency_id, assisting_unit_id } =
+        payload;
 
       try {
         const assist_result = await pool.query(
@@ -446,7 +447,7 @@ io.on("connection", async (socket) => {
         and au.agency_id = $2
       for update
       `,
-          [unit_id, agency_id],
+          [assisting_unit_id, agency_id],
         );
 
         if (unit_result.rowCount === 0) {
@@ -481,7 +482,7 @@ io.on("connection", async (socket) => {
       order by dispatch_id desc
       limit 1
       `,
-          [unit_id],
+          [assisting_unit_id],
         );
 
         let dispatchData;
@@ -497,7 +498,7 @@ io.on("connection", async (socket) => {
           ($1, $2, $3, 'EN ROUTE', $4, $5)
         returning *
         `,
-            [agency_id, unit.unit_type, unit_id, zone_id, zone_name],
+            [agency_id, unit.unit_type, assisting_unit_id, zone_id, zone_name],
           );
 
           dispatchData = dispatch.rows[0];
@@ -509,7 +510,7 @@ io.on("connection", async (socket) => {
         where unit_id = $1
           and status = 'AVAILABLE'
         `,
-            [unit_id],
+            [assisting_unit_id],
           );
         }
 
@@ -525,13 +526,14 @@ io.on("connection", async (socket) => {
 
         await pool.query(
           `
-      update agency_assist_inbox
-      set
-        status = 'ACCEPTED',
-        updated_at = current_timestamp
-      where assist_id = $1
-      `,
-          [assist_id],
+          update agency_assist_inbox
+          set
+          status = 'ACCEPTED',
+          assisting_unit_id = $1,
+          updated_at = current_timestamp
+          where assist_id = $2
+          `,
+          [assisting_unit_id, assist_id],
         );
 
         const agency_result = await pool.query(
@@ -555,7 +557,7 @@ io.on("connection", async (socket) => {
       from agency_units
       where unit_id = $1
       `,
-          [unit_id],
+          [assisting_unit_id],
         );
 
         const unitData = unit_location_result.rows[0];
@@ -567,6 +569,7 @@ io.on("connection", async (socket) => {
           agency_id,
           agency_name,
           unit_id,
+          assisting_unit_id,
           unit_name: unitData.unit_name,
           unit_type: unitData.unit_type,
           unit_location: unitData.location,
@@ -2305,10 +2308,10 @@ where au.unit_type = $2
       });
     }
     const agencies = result.rows;
-await Promise.all(
-  agencies.map(({ agency_id }) =>
-    pool.query(
-      `
+    await Promise.all(
+      agencies.map(({ agency_id }) =>
+        pool.query(
+          `
       insert into agency_assist_inbox (
         agency_id,
         unit_id,
@@ -2323,20 +2326,20 @@ await Promise.all(
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       on conflict (agency_id, unit_id, sos_id) do nothing
       `,
-      [
-        agency_id,
-        unit_id,
-        sos_id,
-        description,
-        details.unit_name,
-        details.agency_name,
-        details.unit_type,
-        details.dispatch_status,
-        details.sos_status,
-      ],
-    ),
-  ),
-);
+          [
+            agency_id,
+            unit_id,
+            sos_id,
+            description,
+            details.unit_name,
+            details.agency_name,
+            details.unit_type,
+            details.dispatch_status,
+            details.sos_status,
+          ],
+        ),
+      ),
+    );
     agencies.forEach(({ agency_id }) => {
       io.to(`agency_${agency_id}`).emit("NEW_ASSISTANCE_REQUEST", payload);
     });
@@ -2344,9 +2347,9 @@ await Promise.all(
   }
   const agencies = result.rows;
   await Promise.all(
-  agencies.map(({ agency_id }) =>
-    pool.query(
-      `
+    agencies.map(({ agency_id }) =>
+      pool.query(
+        `
       insert into agency_assist_inbox (
         agency_id,
         unit_id,
@@ -2361,20 +2364,20 @@ await Promise.all(
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       on conflict (agency_id, unit_id, sos_id) do nothing
       `,
-      [
-        agency_id,
-        unit_id,
-        sos_id,
-        description,
-        details.unit_name,
-        details.agency_name,
-        details.unit_type,
-        details.dispatch_status,
-        details.sos_status,
-      ],
+        [
+          agency_id,
+          unit_id,
+          sos_id,
+          description,
+          details.unit_name,
+          details.agency_name,
+          details.unit_type,
+          details.dispatch_status,
+          details.sos_status,
+        ],
+      ),
     ),
-  ),
-);
+  );
   agencies.forEach(({ agency_id }) => {
     io.to(`agency_${agency_id}`).emit("NEW_ASSISTANCE_REQUEST", payload);
   });
@@ -2417,6 +2420,59 @@ const getAssistRequests = catchAsync(async (req, res) => {
   return res.status(200).json(result.rows);
 });
 
+const getAssistanceStatus = catchAsync(async (req, res) => {
+  const { unit_id, sos_id } = req.params;
+
+const result = await pool.query(
+    `
+    SELECT
+      aai.assist_id,
+      aai.sos_id,
+      aai.unit_id AS requesting_unit_id,
+
+      aai.status AS assistance_status,
+      aai.assisting_unit_id,
+
+      a.agency_id AS assisting_agency_id,
+      a.agency_name AS assisting_agency_name,
+
+      au.unit_name AS assisting_unit_name,
+      au.unit_type AS assisting_unit_type,
+
+      ud.status AS dispatch_status,
+      ud.assigned_at,
+
+      ST_AsGeoJSON(au.current_location)::json AS unit_location
+
+    FROM agency_assist_inbox aai
+
+    JOIN agencies a
+      ON a.agency_id = aai.agency_id
+
+    LEFT JOIN agency_units au
+      ON au.unit_id = aai.assisting_unit_id
+
+    LEFT JOIN sos_dispatches sd
+      ON sd.sos_id = aai.sos_id
+
+    LEFT JOIN unit_dispatches ud
+      ON ud.dispatch_id = sd.dispatch_id
+      AND ud.unit_id = aai.assisting_unit_id
+
+    WHERE aai.unit_id = $1
+      AND aai.sos_id = $2
+
+    ORDER BY aai.assist_id DESC
+    `,
+    [unit_id, sos_id]
+  );
+
+  return res.status(200).json({
+    success: true,
+    assistanceStatus: result.rows,
+  });
+});
+
 app.get("/api/agency/units", verifyAgencyJWT, getAgencyUnits);
 app.get("/api/agency/me", verifyAgencyJWT, getMyAgency);
 app.get("/api/agency/sosAlerts", verifyAgencyJWT, getSosAlerts);
@@ -2426,6 +2482,7 @@ app.get(
   getUnitActiveMission,
 );
 app.get("/api/agency/assistRequests", verifyAgencyJWT, getAssistRequests);
+app.get("/api/agency/:unit_id/activeMission/:sos_id/assistanceStatus", verifyAgencyJWT, getAssistanceStatus);
 app.post(
   "/api/agency/unit/requestAssistance",
   verifyAgencyJWT,

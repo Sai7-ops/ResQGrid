@@ -4432,6 +4432,27 @@ const AgencyTrackRecords = () => {
   );
 };
 
+const apiGetAssistanceStatus = async ({ sos_id, unit_id }) => {
+  const response = await axios.get(
+    `https://resqgrid-x51v.onrender.com/api/agency/unit/${unit_id}/activeMission/${sos_id}/assistanceStatus`
+  );
+
+  return response.data;
+};
+
+const useGetAssistanceStatus = ({ sos_id, unit_id }) => {
+  const { data: assistanceStatus = [], isPending } = useQuery({
+    queryKey: ["assistanceStatus", sos_id, unit_id],
+    queryFn: () => apiGetAssistanceStatus({ sos_id, unit_id }),
+    enabled: !!sos_id && !!unit_id,
+  });
+
+  return {
+    assistanceStatus,
+    isPending,
+  };
+};
+
 const AgencyUnitActiveMission = () => {
   const { data, isPending } = useGetUnitActiveMission();
   const navigate = useNavigate();
@@ -4476,6 +4497,16 @@ const AgencyUnitActiveMission = () => {
     unit_id,
     unit_location,
   } = activeMission[0];
+
+  const { sos_id } = activeMission[0];
+
+  const {
+    assistanceStatus = [],
+    isPending: assistancePending,
+  } = useGetAssistanceStatus({
+    sos_id,
+    unit_id,
+  });
 
   const [unit_longitude, unit_latitude] = unit_location.coordinates;
 
@@ -4604,6 +4635,74 @@ const AgencyUnitActiveMission = () => {
         </div>
       </div>
 
+       {assistanceStatus.length > 0 && (
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Assisting Units
+              </h3>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Units currently responding to your assistance requests.
+              </p>
+            </div>
+
+            <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+              {assistanceStatus.length} Requests
+            </span>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {assistanceStatus.map((assistance) => (
+              <div
+                key={assistance.assist_id}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">
+                      {assistance.assisting_unit_name}
+                    </p>
+
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {assistance.assisting_agency_name}
+                    </p>
+                  </div>
+
+                  <span className="rounded-md bg-teal-50 px-2 py-1 text-[10px] font-bold uppercase text-teal-700">
+                    {assistance.dispatch_status ||
+                      assistance.assistance_status}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">
+                      Unit Type
+                    </p>
+
+                    <p className="text-xs font-semibold text-slate-700">
+                      {assistance.assisting_unit_type}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">
+                      Assistance
+                    </p>
+
+                    <p className="text-xs font-semibold text-slate-700">
+                      {assistance.assistance_status}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
           <Navigation size={18} className="text-[#0D9488]" /> Tactical GPS
@@ -4655,6 +4754,67 @@ const AgencyUnitActiveMission = () => {
                 </Marker>
               );
             })}
+
+            {assistanceStatus.map((assistance) => {
+              if (
+                !assistance.assisting_unit_id ||
+                !assistance.unit_location?.coordinates
+              ) {
+                return null;
+              }
+
+              const [
+                assisting_longitude,
+                assisting_latitude,
+              ] = assistance.unit_location.coordinates;
+
+              return (
+                <Marker
+                  key={`assist-${assistance.assist_id}`}
+                  position={[
+                    assisting_latitude,
+                    assisting_longitude,
+                  ]}
+                  icon={unitIcon}
+                >
+                  <Popup>
+                    <div className="min-w-47.5 p-1">
+                      <strong className="block text-sm font-bold">
+                        {assistance.assisting_unit_name}
+                      </strong>
+
+                      <span className="block text-xs text-slate-500">
+                        {assistance.assisting_agency_name}
+                      </span>
+
+                      <div className="mt-2 border-t border-slate-100 pt-2">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-[10px] font-bold uppercase text-slate-400">
+                            Unit Type
+                          </span>
+
+                          <span className="text-[10px] font-bold text-slate-700">
+                            {assistance.assisting_unit_type}
+                          </span>
+                        </div>
+
+                        <div className="mt-1 flex justify-between gap-4">
+                          <span className="text-[10px] font-bold uppercase text-slate-400">
+                            Status
+                          </span>
+
+                          <span className="text-[10px] font-bold text-teal-700">
+                            {assistance.dispatch_status ||
+                              assistance.assistance_status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
           </MapContainer>
         </div>
       </div>
