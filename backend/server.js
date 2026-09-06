@@ -2499,7 +2499,7 @@ const getNearbyAssistance = catchAsync(async (req, res) => {
         a.category,
         a.hotline_no,
         a.hq_location_address,
-        a.primary_capabilities_tags
+        a.primary_capabilities_tags,
 
         ROUND(
           (
@@ -2539,7 +2539,7 @@ const getNearbyAssistance = catchAsync(async (req, res) => {
           4326
         )::geography;
       `,
-    [latitude, longitude, unit_id, sos_id],
+    [longitude, latitude, unit_id, sos_id],
   );
 
   return res.status(200).json(result.rows);
