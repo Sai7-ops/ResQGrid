@@ -1874,11 +1874,11 @@ const AgencyAssistInbox = () => {
           prev.filter((request) => request.assist_id !== assist_id),
         );
 
-        queryClient.invalidateQueries({
+        queryClient.refetchQueries({
           queryKey: ["agencyUnits"],
         });
 
-        queryClient.invalidateQueries({
+        queryClient.refetchQueries({
           queryKey: ["assistRequests"],
         });
       } else {
